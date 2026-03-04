@@ -30,6 +30,15 @@ class ComponentConfig(BaseModel):
     query_engine: str
 
 
+class ExtractionConfig(BaseModel):
+    default_strategy: str
+    fallback_chain: List[str]
+    min_chars_for_layout: int = Field(gt=0)
+    min_table_markers_for_table_strategy: int = Field(ge=0)
+    low_printable_ratio_for_ocr: float = Field(ge=0.0, le=1.0)
+    prefer_layout_for_pdf: bool
+
+
 class ApiConfig(BaseModel):
     require_api_key: bool
     api_key_env_var: str
@@ -43,6 +52,7 @@ class Settings(BaseModel):
     app: AppConfig
     pipeline: PipelineConfig
     components: ComponentConfig
+    extraction: ExtractionConfig
     api: ApiConfig
 
 

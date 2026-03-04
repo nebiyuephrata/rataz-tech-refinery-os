@@ -25,7 +25,7 @@ class RefineryPipeline:
         self.settings = settings
         self.store = InvertedIndexStore()
 
-        self.extractor = build_extractor(settings.components.extractor)
+        self.extractor = build_extractor(settings.components.extractor, settings)
         self.normalizer = build_normalizer(settings.components.normalizer)
         self.chunker = build_chunker(settings.components.chunker, settings.pipeline)
         self.indexer = build_indexer(settings.components.indexer, self.store)

@@ -14,11 +14,25 @@ pipeline:
   enable_llm_escalation: false
 
 components:
-  extractor: "plain_text"
+  extractor: "auto_triage"
   normalizer: "rule_based"
   chunker: "sliding_window"
   indexer: "inverted_index"
   query_engine: "hybrid"
+
+extraction:
+  default_strategy: "plain_text"
+  fallback_chain:
+    - "pdfplumber_text"
+    - "pymupdf_text"
+    - "docling_layout"
+    - "mineru_layout"
+    - "camelot_table"
+    - "tesseract_ocr"
+  min_chars_for_layout: 1200
+  min_table_markers_for_table_strategy: 10
+  low_printable_ratio_for_ocr: 0.72
+  prefer_layout_for_pdf: true
 
 api:
   require_api_key: false
