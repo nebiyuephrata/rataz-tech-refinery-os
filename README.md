@@ -42,6 +42,14 @@ Environment variables:
 - `RATAZ_TECH_CONFIG` for config file path
 - `RATAZ_TECH_API_HOST` default `127.0.0.1`
 - `RATAZ_TECH_API_PORT` default `8000`
+- `RATAZ_TECH_API_KEY` API key value if `api.require_api_key=true` in config
+
+MVP endpoints:
+- `GET /health` typed health status
+- `POST /ingest` ingest raw text document
+- `POST /ingest/file` ingest uploaded `text/plain` or `application/pdf`
+- `POST /query` run deterministic retrieval query
+- `GET /audit/requests` list request-level audit trail (`trace_id`, route, timestamp)
 
 ## Tests
 

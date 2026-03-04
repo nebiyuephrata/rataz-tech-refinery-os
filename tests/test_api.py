@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+import yaml
+
+from rataz_tech.api.server import create_app
+
+
+def test_health_endpoint() -> None:
+    client = TestClient(create_app("configs/settings.yaml"))
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert "app" in body
+
+
+def test_ingest_query_and_request_audit() -> None:
+    client = TestClient(create_app("configs/settings.yaml"))
+
+    ingest_resp = client.post(
+        "/ingest",
+        json={
+            "document_id": "api-doc-1",
+            "source_uri": "local://api-doc-1.txt",
+            "content": "Rataz Tech keeps traceable provenance in document pipelines.",
+            "mime_type": "text/plain",
+        },
+    )
+    assert ingest_resp.status_code == 200
+    ingest_body = ingest_resp.json()
+    assert ingest_body["trace_id"].startswith("ingest-")
+
+    query_resp = client.post(
+        "/query",
+        json={"query": "traceable provenance", "language": "en", "max_results": 3},
+    )
+    assert query_resp.status_code == 200
+    query_body = query_resp.json()
+    assert query_body["trace_id"].startswith("query-")
+
+    audit_resp = client.get("/audit/requests")
+    assert audit_resp.status_code == 200
+    records = audit_resp.json()["records"]
+    assert len(records) >= 2
+    assert {records[-2]["route"], records[-1]["route"]} == {"/ingest", "/query"}
+
+
+def test_file_ingest_text() -> None:
+    client = TestClient(create_app("configs/settings.yaml"))
+
+    response = client.post(
+        "/ingest/file",
+        files={"file": ("sample.txt", b"MVP upload flow from file endpoint", "text/plain")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["trace_id"].startswith("ingest-")
+    assert body["extraction"]["units"][0]["provenance"]["source_uri"].startswith("upload://")
+
+
+def test_api_key_auth_when_enabled(tmp_path, monkeypatch) -> None:
+    with open("configs/settings.yaml", "r", encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+
+    cfg["api"]["require_api_key"] = True
+    cfg["api"]["api_key_env_var"] = "TEST_RATAZ_API_KEY"
+    cfg_path = tmp_path / "settings-auth.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    monkeypatch.setenv("TEST_RATAZ_API_KEY", "secret")
+    client = TestClient(create_app(str(cfg_path)))
+
+    unauthorized = client.post(
+        "/query",
+        json={"query": "x", "language": "en", "max_results": 1},
+    )
+    assert unauthorized.status_code == 401
+
+    authorized = client.post(
+        "/query",
+        json={"query": "x", "language": "en", "max_results": 1},
+        headers={"x-api-key": "secret"},
+    )
+    assert authorized.status_code == 200
