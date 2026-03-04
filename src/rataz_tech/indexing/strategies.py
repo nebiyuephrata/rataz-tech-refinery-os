@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from typing import Dict, List
+
+from rataz_tech.core.models import AuditEvent, ChunkingResult, IndexResult, IndexedChunk, StageName
+from rataz_tech.core.text import tokenize
+
+
+class IndexingStrategy(ABC):
+    @abstractmethod
+    def index(self, chunked: ChunkingResult) -> IndexResult:
+        raise NotImplementedError
+
+
+class InvertedIndexStore:
+    def __init__(self) -> None:
+        self.chunks: Dict[str, str] = {}
+        self.provenance: Dict[str, list] = {}
+        self.postings: Dict[str, List[str]] = defaultdict(list)
+
+
+class InvertedIndexingStrategy(IndexingStrategy):
+    def __init__(self, store: InvertedIndexStore) -> None:
+        self.store = store
+
+    def index(self, chunked: ChunkingResult) -> IndexResult:
+        indexed = []
+        for chunk in chunked.chunks:
+            self.store.chunks[chunk.chunk_id] = chunk.text
+            self.store.provenance[chunk.chunk_id] = chunk.provenance
+            tokens = tokenize(chunk.text)
+            for tok in set(tokens):
+                self.store.postings[tok].append(chunk.chunk_id)
+            indexed.append(IndexedChunk(chunk_id=chunk.chunk_id, text=chunk.text, token_count=len(tokens)))
+
+        return IndexResult(
+            document_id=chunked.document_id,
+            indexed=indexed,
+            audit=[AuditEvent(stage=StageName.INDEXING, message="Inverted index updated")],
+        )
