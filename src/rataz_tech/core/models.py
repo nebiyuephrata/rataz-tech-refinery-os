@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class StageName(str, Enum):
@@ -13,6 +13,64 @@ class StageName(str, Enum):
     CHUNKING = "chunking"
     INDEXING = "indexing"
     QUERYING = "querying"
+
+
+class OriginType(str, Enum):
+    NATIVE_DIGITAL = "native_digital"
+    SCANNED_IMAGE = "scanned_image"
+    MIXED = "mixed"
+
+
+class LayoutComplexity(str, Enum):
+    SINGLE_COLUMN = "single_column"
+    MULTI_COLUMN = "multi_column"
+    TABLE_HEAVY = "table_heavy"
+    FIGURE_HEAVY = "figure_heavy"
+    MIXED = "mixed"
+
+
+class DomainHint(str, Enum):
+    FINANCE = "finance"
+    LEGAL = "legal"
+    ASSESSMENT = "assessment"
+    FISCAL = "fiscal"
+    GENERAL = "general"
+
+
+class ExtractionCostTier(str, Enum):
+    A_FAST_TEXT = "A_fast_text"
+    B_LAYOUT_AWARE = "B_layout_aware"
+    C_VISION_AUGMENTED = "C_vision_augmented"
+
+
+class ChunkType(str, Enum):
+    TEXT = "text"
+    TABLE = "table"
+    FIGURE = "figure"
+
+
+class BBox(BaseModel):
+    x0: float = Field(ge=0)
+    y0: float = Field(ge=0)
+    x1: float = Field(ge=0)
+    y1: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_axis_order(self) -> BBox:
+        if self.x1 < self.x0 or self.y1 < self.y0:
+            raise ValueError("bbox must satisfy x1>=x0 and y1>=y0")
+        return self
+
+
+class PageRef(BaseModel):
+    page_start: int = Field(ge=1)
+    page_end: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> PageRef:
+        if self.page_end < self.page_start:
+            raise ValueError("page_end must be >= page_start")
+        return self
 
 
 class SpatialProvenance(BaseModel):
@@ -29,6 +87,83 @@ class ProvenanceRecord(BaseModel):
     record_id: str
     spatial: Optional[SpatialProvenance] = None
     confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ProvenanceChain(BaseModel):
+    document_name: str
+    page_number: int = Field(ge=1)
+    bbox: Optional[BBox] = None
+    content_hash: str = Field(min_length=8)
+
+
+class DocumentProfile(BaseModel):
+    origin_type: OriginType
+    layout_complexity: LayoutComplexity
+    language: str = "en"
+    domain_hint: DomainHint
+    extraction_cost: ExtractionCostTier
+    confidence: float = Field(ge=0.0, le=1.0)
+
+    char_count: int = Field(ge=0)
+    char_density: float = Field(ge=0.0)
+    image_ratio: float = Field(ge=0.0, le=1.0)
+    font_metadata_present: bool
+    table_marker_count: int = Field(ge=0)
+
+    zero_text: bool = False
+    mixed_mode_pages: bool = False
+    form_fillable: bool = False
+
+
+class LogicalDocumentUnit(BaseModel):
+    ldu_id: str
+    content: str
+    chunk_type: ChunkType
+    token_count: int = Field(ge=0)
+    page_refs: List[PageRef]
+    bounding_box: Optional[BBox] = None
+    content_hash: str = Field(min_length=8)
+    parent_section: Optional[str] = None
+    chunk_relationships: List[str] = Field(default_factory=list)
+
+
+class PageIndexNode(BaseModel):
+    node_id: str
+    title: str
+    page_start: int = Field(ge=1)
+    page_end: int = Field(ge=1)
+    children: List["PageIndexNode"] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> PageIndexNode:
+        if self.page_end < self.page_start:
+            raise ValueError("page_end must be >= page_start")
+        return self
+
+
+class ExtractedTable(BaseModel):
+    table_id: str
+    headers: List[str]
+    rows: List[List[str]]
+    page_number: int = Field(ge=1)
+    bounding_box: Optional[BBox] = None
+
+
+class ExtractedFigure(BaseModel):
+    figure_id: str
+    caption: str
+    page_number: int = Field(ge=1)
+    bounding_box: Optional[BBox] = None
+
+
+class ExtractedDocument(BaseModel):
+    document_id: str
+    profile: DocumentProfile
+    text_blocks: List[LogicalDocumentUnit] = Field(default_factory=list)
+    tables: List[ExtractedTable] = Field(default_factory=list)
+    figures: List[ExtractedFigure] = Field(default_factory=list)
+    page_index: PageIndexNode
+    provenance_chains: List[ProvenanceChain] = Field(default_factory=list)
 
 
 class AuditEvent(BaseModel):
@@ -55,6 +190,12 @@ class ExtractedUnit(BaseModel):
 class ExtractionResult(BaseModel):
     document_id: str
     trace_id: str = ""
+    profile: Optional[DocumentProfile] = None
+    extracted_document: Optional[ExtractedDocument] = None
+    strategy_used: str = ""
+    strategy_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    escalation_path: List[str] = Field(default_factory=list)
+    review_required: bool = False
     units: List[ExtractedUnit]
     audit: List[AuditEvent]
 
@@ -129,3 +270,6 @@ class PipelineResult(BaseModel):
     normalization: NormalizationResult
     chunking: ChunkingResult
     indexing: IndexResult
+
+
+PageIndexNode.model_rebuild()

@@ -1,9 +1,7 @@
 app:
   name: "Rataz Tech Refinery-OS"
   default_language: "am"
-  supported_languages:
-    - "en"
-    - "am"
+  supported_languages: ["en", "am"]
 
 pipeline:
   max_chunk_chars: 700
@@ -12,6 +10,13 @@ pipeline:
   confidence_threshold: 0.6
   enable_semantic_navigation: true
   enable_llm_escalation: false
+  # Five-rule chunking constitution (self-documenting policy)
+  chunking_constitution:
+    - "Preserve table integrity; never split header from rows when avoidable"
+    - "Prefer semantic boundaries (section/title/paragraph) over raw token boundaries"
+    - "Keep provenance for every chunk (source unit IDs + page refs + bbox chain)"
+    - "Allow controlled overlap to preserve cross-sentence meaning"
+    - "Respect max chunk size while minimizing orphan context"
 
 components:
   extractor: "auto_triage"
@@ -22,6 +27,8 @@ components:
 
 extraction:
   default_strategy: "plain_text"
+
+  # Optional fallback adapters for deterministic degradation.
   fallback_chain:
     - "pdfplumber_text"
     - "pymupdf_text"
@@ -29,10 +36,43 @@ extraction:
     - "mineru_layout"
     - "camelot_table"
     - "tesseract_ocr"
+
+  # Profile thresholds (no magic numbers in code).
   min_chars_for_layout: 1200
   min_table_markers_for_table_strategy: 10
   low_printable_ratio_for_ocr: 0.72
+  native_char_density_min: 250.0
+  mixed_image_ratio_min: 0.30
+  scanned_image_ratio_min: 0.60
   prefer_layout_for_pdf: true
+
+  # Strategy selected from computed extraction_cost tier.
+  strategy_by_cost:
+    A_fast_text: "plain_text"
+    B_layout_aware: "docling_layout"
+    C_vision_augmented: "vision_augmented"
+
+  # Confidence gates per strategy tier.
+  strategy_confidence_thresholds:
+    A_fast_text: 0.50
+    B_layout_aware: 0.78
+    C_vision_augmented: 0.82
+
+  # Domain onboarding is config-only: extend keywords here.
+  domain_keywords:
+    finance: ["balance sheet", "cash flow", "ebitda", "revenue", "asset"]
+    legal: ["hereby", "whereas", "plaintiff", "defendant", "affidavit"]
+    assessment: ["score", "rubric", "criterion", "assessment", "evaluation"]
+    fiscal: ["budget", "tax", "fiscal", "appropriation", "expenditure"]
+
+  escalation:
+    strategy_order: ["A_fast_text", "B_layout_aware", "C_vision_augmented"]
+    review_on_final_low_confidence: true
+
+  vision_budget:
+    max_tokens_per_document: 4000
+    max_cost_usd_per_document: 0.05
+    estimated_cost_per_1k_tokens_usd: 0.008
 
 api:
   require_api_key: false
@@ -40,6 +80,4 @@ api:
   max_audit_records: 5000
   max_upload_bytes: 4000000
   fallback_mime_type: "text/plain"
-  allowed_upload_mime_types:
-    - "text/plain"
-    - "application/pdf"
+  allowed_upload_mime_types: ["text/plain", "application/pdf"]

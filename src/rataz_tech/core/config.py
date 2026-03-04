@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import yaml
 from pydantic import BaseModel, Field
@@ -20,6 +20,7 @@ class PipelineConfig(BaseModel):
     confidence_threshold: float = Field(ge=0.0, le=1.0)
     enable_semantic_navigation: bool
     enable_llm_escalation: bool
+    chunking_constitution: List[str] = Field(default_factory=list)
 
 
 class ComponentConfig(BaseModel):
@@ -30,13 +31,35 @@ class ComponentConfig(BaseModel):
     query_engine: str
 
 
+class VisionBudgetConfig(BaseModel):
+    max_tokens_per_document: int = Field(gt=0)
+    max_cost_usd_per_document: float = Field(gt=0)
+    estimated_cost_per_1k_tokens_usd: float = Field(gt=0)
+
+
+class EscalationConfig(BaseModel):
+    strategy_order: List[str] = Field(min_length=3)
+    review_on_final_low_confidence: bool = True
+
+
 class ExtractionConfig(BaseModel):
     default_strategy: str
     fallback_chain: List[str]
+
     min_chars_for_layout: int = Field(gt=0)
     min_table_markers_for_table_strategy: int = Field(ge=0)
     low_printable_ratio_for_ocr: float = Field(ge=0.0, le=1.0)
+    native_char_density_min: float = Field(ge=0.0)
+    mixed_image_ratio_min: float = Field(ge=0.0, le=1.0)
+    scanned_image_ratio_min: float = Field(ge=0.0, le=1.0)
     prefer_layout_for_pdf: bool
+
+    strategy_by_cost: Dict[str, str]
+    strategy_confidence_thresholds: Dict[str, float]
+    domain_keywords: Dict[str, List[str]]
+
+    escalation: EscalationConfig
+    vision_budget: VisionBudgetConfig
 
 
 class ApiConfig(BaseModel):
