@@ -18,6 +18,19 @@ pip install -e .
 python -m rataz_tech.main
 ```
 
+## UI (Kivy)
+
+```bash
+pip install -e ".[ui]"
+rataz-tech-ui
+```
+
+Set config path with:
+
+```bash
+export RATAZ_TECH_CONFIG=configs/settings.yaml
+```
+
 ## Tests
 
 ```bash

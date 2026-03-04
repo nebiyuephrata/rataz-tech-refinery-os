@@ -13,6 +13,15 @@ dependencies = [
   "PyYAML>=6.0.1"
 ]
 
+[project.optional-dependencies]
+ui = [
+  "kivy>=2.3.0"
+]
+
+[project.scripts]
+rataz-tech-demo = "rataz_tech.main:run_demo"
+rataz-tech-ui = "rataz_tech.ui.kivy_app:run_ui"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
