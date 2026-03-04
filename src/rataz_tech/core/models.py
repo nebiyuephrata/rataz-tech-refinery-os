@@ -34,6 +34,7 @@ class ProvenanceRecord(BaseModel):
 class AuditEvent(BaseModel):
     stage: StageName
     message: str
+    trace_id: str = ""
     timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, str] = Field(default_factory=dict)
 
@@ -53,6 +54,7 @@ class ExtractedUnit(BaseModel):
 
 class ExtractionResult(BaseModel):
     document_id: str
+    trace_id: str = ""
     units: List[ExtractedUnit]
     audit: List[AuditEvent]
 
@@ -65,6 +67,7 @@ class NormalizedUnit(BaseModel):
 
 class NormalizationResult(BaseModel):
     document_id: str
+    trace_id: str = ""
     units: List[NormalizedUnit]
     audit: List[AuditEvent]
 
@@ -79,6 +82,7 @@ class Chunk(BaseModel):
 
 class ChunkingResult(BaseModel):
     document_id: str
+    trace_id: str = ""
     chunks: List[Chunk]
     audit: List[AuditEvent]
 
@@ -91,6 +95,7 @@ class IndexedChunk(BaseModel):
 
 class IndexResult(BaseModel):
     document_id: str
+    trace_id: str = ""
     indexed: List[IndexedChunk]
     audit: List[AuditEvent]
 
@@ -111,6 +116,7 @@ class QueryHit(BaseModel):
 class QueryResponse(BaseModel):
     query: str
     language: str
+    trace_id: str = ""
     hits: List[QueryHit]
     escalated: bool = False
     reason: Optional[str] = None
@@ -118,6 +124,7 @@ class QueryResponse(BaseModel):
 
 
 class PipelineResult(BaseModel):
+    trace_id: str = ""
     extraction: ExtractionResult
     normalization: NormalizationResult
     chunking: ChunkingResult

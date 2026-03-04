@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import uuid4
 
 from rataz_tech.chunking.factory import build_chunker
 from rataz_tech.core.config import Settings
-from rataz_tech.core.models import DocumentInput, PipelineResult, QueryRequest, QueryResponse
+from rataz_tech.core.models import (
+    AuditEvent,
+    DocumentInput,
+    PipelineResult,
+    QueryRequest,
+    QueryResponse,
+)
 from rataz_tech.extraction.factory import build_extractor
 from rataz_tech.indexing.factory import build_indexer
 from rataz_tech.indexing.strategies import InvertedIndexStore
@@ -31,11 +38,25 @@ class RefineryPipeline:
         self.i18n.load(locale_dir)
 
     def ingest(self, doc: DocumentInput) -> PipelineResult:
+        trace_id = f"ingest-{uuid4()}"
         extracted = self.extractor.extract(doc)
+        self._stamp_audit(extracted.audit, trace_id)
+        extracted.trace_id = trace_id
+
         normalized = self.normalizer.normalize(extracted)
+        self._stamp_audit(normalized.audit, trace_id)
+        normalized.trace_id = trace_id
+
         chunked = self.chunker.chunk(normalized)
+        self._stamp_audit(chunked.audit, trace_id)
+        chunked.trace_id = trace_id
+
         indexed = self.indexer.index(chunked)
+        self._stamp_audit(indexed.audit, trace_id)
+        indexed.trace_id = trace_id
+
         return PipelineResult(
+            trace_id=trace_id,
             extraction=extracted,
             normalization=normalized,
             chunking=chunked,
@@ -43,9 +64,17 @@ class RefineryPipeline:
         )
 
     def query(self, request: QueryRequest) -> QueryResponse:
+        trace_id = f"query-{uuid4()}"
         response = self.query_engine.query(request)
+        self._stamp_audit(response.audit, trace_id)
+        response.trace_id = trace_id
         if not response.hits and request.language in self.settings.app.supported_languages:
             response.reason = self.i18n.t("query.no_hits", request.language)
         elif response.reason and "Low confidence" in response.reason:
             response.reason = self.i18n.t("query.low_confidence", request.language)
         return response
+
+    @staticmethod
+    def _stamp_audit(events: list[AuditEvent], trace_id: str) -> None:
+        for event in events:
+            event.trace_id = trace_id
