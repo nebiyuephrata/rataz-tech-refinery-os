@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -73,12 +73,19 @@ class ApiConfig(BaseModel):
     allowed_upload_mime_types: List[str]
 
 
+class StorageConfig(BaseModel):
+    backend: Literal["memory", "sqlite"] = "memory"
+    sqlite_path: str = "./data/refinery_os.db"
+    max_extraction_records: int = Field(gt=0, default=1000)
+
+
 class Settings(BaseModel):
     app: AppConfig
     pipeline: PipelineConfig
     components: ComponentConfig
     extraction: ExtractionConfig
     api: ApiConfig
+    storage: StorageConfig = Field(default_factory=StorageConfig)
 
 
 def load_settings(path: str | Path) -> Settings:

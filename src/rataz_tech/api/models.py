@@ -5,10 +5,13 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from rataz_tech.core.models import PipelineResult
+
 
 class HealthResponse(BaseModel):
     status: str
     app: str
+    storage_backend: str
 
 
 class ApiErrorResponse(BaseModel):
@@ -26,3 +29,10 @@ class RequestAuditRecord(BaseModel):
 
 class RequestAuditListResponse(BaseModel):
     records: List[RequestAuditRecord]
+
+
+class StoredExtractionResponse(BaseModel):
+    document_id: str
+    trace_id: str
+    extracted_at_utc: datetime
+    pipeline_result: PipelineResult

@@ -14,6 +14,7 @@ def test_health_endpoint() -> None:
     body = response.json()
     assert body["status"] == "ok"
     assert "app" in body
+    assert "storage_backend" in body
 
 
 def test_ingest_query_and_request_audit() -> None:
@@ -31,6 +32,7 @@ def test_ingest_query_and_request_audit() -> None:
     assert ingest_resp.status_code == 200
     ingest_body = ingest_resp.json()
     assert ingest_body["trace_id"].startswith("ingest-")
+    doc_id = ingest_body["extraction"]["document_id"]
 
     query_resp = client.post(
         "/query",
@@ -45,6 +47,12 @@ def test_ingest_query_and_request_audit() -> None:
     records = audit_resp.json()["records"]
     assert len(records) >= 2
     assert {records[-2]["route"], records[-1]["route"]} == {"/ingest", "/query"}
+
+    extraction_resp = client.get(f"/extractions/{doc_id}")
+    assert extraction_resp.status_code == 200
+    extraction_body = extraction_resp.json()
+    assert extraction_body["document_id"] == doc_id
+    assert extraction_body["pipeline_result"]["trace_id"].startswith("ingest-")
 
 
 def test_file_ingest_text() -> None:
@@ -84,3 +92,49 @@ def test_api_key_auth_when_enabled(tmp_path, monkeypatch) -> None:
         headers={"x-api-key": "secret"},
     )
     assert authorized.status_code == 200
+
+
+def test_audit_filtering_by_route() -> None:
+    client = TestClient(create_app("configs/settings.yaml"))
+    client.post(
+        "/ingest",
+        json={
+            "document_id": "api-doc-filter",
+            "source_uri": "local://api-doc-filter.txt",
+            "content": "route filtering test",
+            "mime_type": "text/plain",
+        },
+    )
+    client.post("/query", json={"query": "test", "language": "en", "max_results": 1})
+
+    response = client.get("/audit/requests", params={"route": "/query", "limit": 5})
+    assert response.status_code == 200
+    records = response.json()["records"]
+    assert records
+    assert all(r["route"] == "/query" for r in records)
+
+
+def test_sqlite_store_persists_extraction_lookup(tmp_path) -> None:
+    with open("configs/settings.yaml", "r", encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+
+    cfg["storage"]["backend"] = "sqlite"
+    cfg["storage"]["sqlite_path"] = str(tmp_path / "refinery.db")
+    cfg_path = tmp_path / "settings-sqlite.yaml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    client = TestClient(create_app(str(cfg_path)))
+    ingest_resp = client.post(
+        "/ingest",
+        json={
+            "document_id": "sql-doc-1",
+            "source_uri": "local://sql-doc-1.txt",
+            "content": "sqlite persistence check",
+            "mime_type": "text/plain",
+        },
+    )
+    assert ingest_resp.status_code == 200
+
+    lookup = client.get("/extractions/sql-doc-1")
+    assert lookup.status_code == 200
+    assert lookup.json()["document_id"] == "sql-doc-1"

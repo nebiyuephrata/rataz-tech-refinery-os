@@ -83,3 +83,8 @@ api:
   max_upload_bytes: 4000000
   fallback_mime_type: "text/plain"
   allowed_upload_mime_types: ["text/plain", "application/pdf"]
+
+storage:
+  backend: "sqlite"
+  sqlite_path: "./data/refinery_os.db"
+  max_extraction_records: 1000

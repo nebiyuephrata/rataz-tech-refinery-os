@@ -30,6 +30,7 @@ Open-source document intelligence engine for deterministic extraction, provenanc
 - Config-driven extraction triage and fallback chain.
 - Pydantic typed outputs across pipeline and API.
 - Trace IDs + request audit trail.
+- Persistent storage backends for audit/extraction history (`memory` and `sqlite`).
 - Amharic + English localization support.
 
 ## Run Locally
@@ -54,6 +55,7 @@ docker run -p 8000:8000 refinery-os
 - `POST /ingest/file`
 - `POST /query`
 - `GET /audit/requests`
+- `GET /extractions/{document_id}`
 
 ## Config
 
@@ -61,6 +63,7 @@ Runtime controls are in `configs/settings.yaml`:
 - extraction routing thresholds and fallback chain
 - query confidence/escalation controls
 - API auth, upload limits, and audit retention
+- storage backend (`memory` or `sqlite`) and SQLite path/retention caps
 
 ## Test
 

@@ -4,10 +4,16 @@ import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 
-from rataz_tech.api.models import ApiErrorResponse, HealthResponse, RequestAuditListResponse, RequestAuditRecord
-from rataz_tech.api.services import APIKeyAuthService, FileIngestService, RequestAuditService
+from rataz_tech.api.models import (
+    ApiErrorResponse,
+    HealthResponse,
+    RequestAuditListResponse,
+    RequestAuditRecord,
+    StoredExtractionResponse,
+)
+from rataz_tech.api.services import APIKeyAuthService, FileIngestService, build_request_store
 from rataz_tech.core.models import DocumentInput, PipelineResult, QueryRequest, QueryResponse
 from rataz_tech.main import build_pipeline
 
@@ -18,25 +24,31 @@ def create_app(config_path: str | None = None) -> FastAPI:
 
     auth = APIKeyAuthService(pipeline.settings.api)
     file_ingest = FileIngestService(pipeline.settings.api)
-    audit = RequestAuditService(max_records=pipeline.settings.api.max_audit_records)
+    store = build_request_store(pipeline.settings.storage, pipeline.settings.api)
 
     error_responses = {
         401: {"model": ApiErrorResponse},
+        404: {"model": ApiErrorResponse},
         413: {"model": ApiErrorResponse},
         415: {"model": ApiErrorResponse},
         422: {"model": ApiErrorResponse},
     }
 
-    app = FastAPI(title="Rataz Tech Refinery-OS API", version="0.2.0")
+    app = FastAPI(title="Rataz Tech Refinery-OS API", version="0.3.0")
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
-        return HealthResponse(status="ok", app=pipeline.settings.app.name)
+        return HealthResponse(
+            status="ok",
+            app=pipeline.settings.app.name,
+            storage_backend=pipeline.settings.storage.backend,
+        )
 
     @app.post("/ingest", response_model=PipelineResult, responses=error_responses)
     def ingest(doc: DocumentInput, _: None = Depends(auth.verify)) -> PipelineResult:
         result = pipeline.ingest(doc)
-        audit.add(
+        store.save_extraction(result)
+        store.add_audit(
             RequestAuditRecord(
                 route="/ingest",
                 method="POST",
@@ -64,7 +76,8 @@ def create_app(config_path: str | None = None) -> FastAPI:
                 mime_type=mime_type,
             )
         )
-        audit.add(
+        store.save_extraction(result)
+        store.add_audit(
             RequestAuditRecord(
                 route="/ingest/file",
                 method="POST",
@@ -78,7 +91,7 @@ def create_app(config_path: str | None = None) -> FastAPI:
     @app.post("/query", response_model=QueryResponse, responses=error_responses)
     def query(request: QueryRequest, _: None = Depends(auth.verify)) -> QueryResponse:
         response = pipeline.query(request)
-        audit.add(
+        store.add_audit(
             RequestAuditRecord(
                 route="/query",
                 method="POST",
@@ -89,8 +102,20 @@ def create_app(config_path: str | None = None) -> FastAPI:
         return response
 
     @app.get("/audit/requests", response_model=RequestAuditListResponse, responses=error_responses)
-    def list_request_audit(_: None = Depends(auth.verify)) -> RequestAuditListResponse:
-        return RequestAuditListResponse(records=audit.list())
+    def list_request_audit(
+        _: None = Depends(auth.verify),
+        limit: int = Query(default=100, ge=1, le=1000),
+        route: str | None = Query(default=None),
+        document_id: str | None = Query(default=None),
+    ) -> RequestAuditListResponse:
+        return RequestAuditListResponse(records=store.list_audit(limit=limit, route=route, document_id=document_id))
+
+    @app.get("/extractions/{document_id}", response_model=StoredExtractionResponse, responses=error_responses)
+    def get_extraction(document_id: str, _: None = Depends(auth.verify)) -> StoredExtractionResponse:
+        item = store.get_latest_extraction(document_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"No extraction found for document_id={document_id}")
+        return item
 
     return app
 
