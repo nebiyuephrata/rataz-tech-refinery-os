@@ -52,6 +52,8 @@ class ExtractionConfig(BaseModel):
     native_char_density_min: float = Field(ge=0.0)
     mixed_image_ratio_min: float = Field(ge=0.0, le=1.0)
     scanned_image_ratio_min: float = Field(ge=0.0, le=1.0)
+    mixed_layout_short_line_ratio_min: float = Field(ge=0.0, le=1.0)
+    multi_column_short_line_ratio_min: float = Field(ge=0.0, le=1.0)
     prefer_layout_for_pdf: bool
 
     strategy_by_cost: Dict[str, str]

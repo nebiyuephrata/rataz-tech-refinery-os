@@ -44,6 +44,8 @@ extraction:
   native_char_density_min: 250.0
   mixed_image_ratio_min: 0.30
   scanned_image_ratio_min: 0.60
+  mixed_layout_short_line_ratio_min: 0.20
+  multi_column_short_line_ratio_min: 0.45
   prefer_layout_for_pdf: true
 
   # Strategy selected from computed extraction_cost tier.

@@ -41,12 +41,20 @@ def _looks_form_fillable(text: str) -> bool:
     return any(marker in lowered for marker in markers)
 
 
-def _layout_from_signals(table_marker_count: int, line_count: int, short_line_ratio: float) -> LayoutComplexity:
-    if table_marker_count >= 10 and short_line_ratio > 0.2:
+def _layout_from_signals(
+    table_marker_count: int,
+    line_count: int,
+    short_line_ratio: float,
+    cfg: ExtractionConfig,
+) -> LayoutComplexity:
+    if (
+        table_marker_count >= cfg.min_table_markers_for_table_strategy
+        and short_line_ratio > cfg.mixed_layout_short_line_ratio_min
+    ):
         return LayoutComplexity.MIXED
-    if table_marker_count >= 10:
+    if table_marker_count >= cfg.min_table_markers_for_table_strategy:
         return LayoutComplexity.TABLE_HEAVY
-    if short_line_ratio > 0.45 and line_count > 10:
+    if short_line_ratio > cfg.multi_column_short_line_ratio_min and line_count > 10:
         return LayoutComplexity.MULTI_COLUMN
     return LayoutComplexity.SINGLE_COLUMN
 
@@ -95,7 +103,7 @@ def profile_document(
         origin_type = OriginType.NATIVE_DIGITAL
 
     short_line_ratio = short_lines / max(1, line_count)
-    layout_complexity = _layout_from_signals(table_marker_count, line_count, short_line_ratio)
+    layout_complexity = _layout_from_signals(table_marker_count, line_count, short_line_ratio, cfg)
     domain_hint = domain_classifier.classify(text, cfg.domain_keywords)
 
     if origin_type == OriginType.SCANNED_IMAGE or zero_text:
