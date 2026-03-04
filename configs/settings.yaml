@@ -1,0 +1,21 @@
+app:
+  name: "Rataz Tech Refinery-OS"
+  default_language: "am"
+  supported_languages:
+    - "en"
+    - "am"
+
+pipeline:
+  max_chunk_chars: 700
+  chunk_overlap_chars: 100
+  max_query_results: 5
+  confidence_threshold: 0.6
+  enable_semantic_navigation: true
+  enable_llm_escalation: false
+
+components:
+  extractor: "plain_text"
+  normalizer: "rule_based"
+  chunker: "sliding_window"
+  indexer: "inverted_index"
+  query_engine: "hybrid"
