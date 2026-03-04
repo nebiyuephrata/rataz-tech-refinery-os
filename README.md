@@ -1,73 +1,69 @@
 # Rataz Tech Refinery-OS
 
-Deterministic, open-source-first document intelligence engine scaffold with:
-- strict stage boundaries: extraction, normalization, chunking, indexing, querying
-- Strategy + Factory + Adapter patterns
-- Pydantic typed contracts for all pipeline I/O
-- audit events and spatial provenance retention
-- run-level `trace_id` propagation across all stage audit events
-- graceful low-confidence handling and optional escalation
-- built-in localization (`en`, `am`)
+Open-source document intelligence engine for deterministic extraction, provenance-preserving transformation, and auditable semantic retrieval.
 
-## Quickstart
+## Stack (Free & Minimal)
+
+| Layer | Tool |
+|---|---|
+| PDF reading | pdfplumber / PyMuPDF adapters |
+| Layout extraction | Docling / MinerU adapters |
+| OCR | Tesseract adapter |
+| Table extraction | Camelot adapter |
+| Embeddings | BGE-small (planned) |
+| Vector store | FAISS local (planned) |
+| DB | SQLite (planned persistent audit) |
+| API | FastAPI |
+
+## Submission Artifacts
+
+- [DOMAIN_NOTES.md](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/DOMAIN_NOTES.md)
+- [Architecture Diagram](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/docs/ARCHITECTURE.md)
+- [Code Skeletons + Prompt](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/docs/CODE_SKELETONS.md)
+- [Cost Estimation](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/docs/COST_ESTIMATION.md)
+- [Test Results](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/docs/TEST_RESULTS.md)
+
+## MVP Features
+
+- Modular stages: extraction, normalization, chunking, indexing, querying.
+- Strategy + Factory + Adapter patterns.
+- Config-driven extraction triage and fallback chain.
+- Pydantic typed outputs across pipeline and API.
+- Trace IDs + request audit trail.
+- Amharic + English localization support.
+
+## Run Locally
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+pip install -U -r requirements.txt
 pip install -e .
-python -m rataz_tech.main
+uvicorn rataz_tech.api.server:app --reload
 ```
 
-## UI (Kivy)
+## Docker
 
 ```bash
-pip install -e ".[ui]"
-rataz-tech-ui
+docker build -t refinery-os .
+docker run -p 8000:8000 refinery-os
 ```
 
-Set config path with:
+## API Endpoints
+
+- `GET /health`
+- `POST /ingest`
+- `POST /ingest/file`
+- `POST /query`
+- `GET /audit/requests`
+
+## Config
+
+Runtime controls are in `configs/settings.yaml`:
+- extraction routing thresholds and fallback chain
+- query confidence/escalation controls
+- API auth, upload limits, and audit retention
+
+## Test
 
 ```bash
-export RATAZ_TECH_CONFIG=configs/settings.yaml
+uv run --with pytest pytest -q
 ```
-
-## API (FastAPI)
-
-```bash
-pip install -e ".[api]"
-rataz-tech-api
-```
-
-Environment variables:
-- `RATAZ_TECH_CONFIG` for config file path
-- `RATAZ_TECH_API_HOST` default `127.0.0.1`
-- `RATAZ_TECH_API_PORT` default `8000`
-- `RATAZ_TECH_API_KEY` API key value if `api.require_api_key=true` in config
-
-MVP endpoints:
-- `GET /health` typed health status
-- `POST /ingest` ingest raw text document
-- `POST /ingest/file` ingest uploaded `text/plain` or `application/pdf`
-- `POST /query` run deterministic retrieval query
-- `GET /audit/requests` list request-level audit trail (`trace_id`, route, timestamp)
-
-## Tests
-
-```bash
-pytest -q
-```
-
-## CI/CD
-
-- CI (`.github/workflows/ci.yml`): runs on every push/PR to `main`, executes lint (`ruff`) and tests (`pytest`) on Python 3.11 and 3.12.
-- CD (`.github/workflows/cd.yml`): runs on version tags (`v*`) or manual trigger, builds package artifacts and publishes a GitHub Release for tags.
-
-## Traceability And Agents
-
-- You do not need LangChain agents for critical traceability.
-- Start with deterministic pipeline tracing: run-level `trace_id`, stage-level audit events, and per-chunk provenance.
-- Add agent orchestration later only for bounded tasks (for example, ambiguity resolution) behind a strategy interface, while preserving the same typed audit/provenance contracts.
-
-## Configuration
-
-All runtime thresholds and component selections are in `configs/settings.yaml`.
