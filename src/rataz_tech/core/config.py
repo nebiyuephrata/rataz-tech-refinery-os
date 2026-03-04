@@ -30,10 +30,20 @@ class ComponentConfig(BaseModel):
     query_engine: str
 
 
+class ApiConfig(BaseModel):
+    require_api_key: bool
+    api_key_env_var: str
+    max_audit_records: int = Field(gt=0)
+    max_upload_bytes: int = Field(gt=0)
+    fallback_mime_type: str
+    allowed_upload_mime_types: List[str]
+
+
 class Settings(BaseModel):
     app: AppConfig
     pipeline: PipelineConfig
     components: ComponentConfig
+    api: ApiConfig
 
 
 def load_settings(path: str | Path) -> Settings:
