@@ -31,6 +31,18 @@ Set config path with:
 export RATAZ_TECH_CONFIG=configs/settings.yaml
 ```
 
+## API (FastAPI)
+
+```bash
+pip install -e ".[api]"
+rataz-tech-api
+```
+
+Environment variables:
+- `RATAZ_TECH_CONFIG` for config file path
+- `RATAZ_TECH_API_HOST` default `127.0.0.1`
+- `RATAZ_TECH_API_PORT` default `8000`
+
 ## Tests
 
 ```bash

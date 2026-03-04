@@ -17,10 +17,15 @@ dependencies = [
 ui = [
   "kivy>=2.3.0"
 ]
+api = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0"
+]
 
 [project.scripts]
 rataz-tech-demo = "rataz_tech.main:run_demo"
 rataz-tech-ui = "rataz_tech.ui.kivy_app:run_ui"
+rataz-tech-api = "rataz_tech.api.server:run_api"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
