@@ -1,0 +1,5 @@
+{
+  "pipeline.ready": "Pipeline initialized",
+  "query.no_hits": "No matching content found",
+  "query.low_confidence": "Low confidence result"
+}
