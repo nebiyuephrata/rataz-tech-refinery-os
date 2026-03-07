@@ -17,6 +17,15 @@ pipeline:
     - "Keep provenance for every chunk (source unit IDs + page refs + bbox chain)"
     - "Allow controlled overlap to preserve cross-sentence meaning"
     - "Respect max chunk size while minimizing orphan context"
+  semantic_query:
+    enabled: true
+    top_k: 5
+    lexical_weight: 0.55
+    semantic_weight: 0.45
+    embedder_provider: "hashing" # switch to "bge-small" when sentence-transformers is installed
+    vector_store_provider: "inmemory" # switch to "faiss" when faiss is installed
+    bge_model_name: "BAAI/bge-small-en-v1.5"
+    hashing_dim: 128
 
 components:
   extractor: "auto_triage"

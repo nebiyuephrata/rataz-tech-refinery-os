@@ -21,6 +21,18 @@ class PipelineConfig(BaseModel):
     enable_semantic_navigation: bool
     enable_llm_escalation: bool
     chunking_constitution: List[str] = Field(default_factory=list)
+    semantic_query: "SemanticQuerySettings" = Field(default_factory=lambda: SemanticQuerySettings())
+
+
+class SemanticQuerySettings(BaseModel):
+    enabled: bool = True
+    top_k: int = Field(default=5, gt=0)
+    lexical_weight: float = Field(default=0.6, ge=0.0)
+    semantic_weight: float = Field(default=0.4, ge=0.0)
+    embedder_provider: Literal["hashing", "bge-small"] = "hashing"
+    vector_store_provider: Literal["inmemory", "faiss"] = "inmemory"
+    bge_model_name: str = "BAAI/bge-small-en-v1.5"
+    hashing_dim: int = Field(default=128, gt=0)
 
 
 class ComponentConfig(BaseModel):
