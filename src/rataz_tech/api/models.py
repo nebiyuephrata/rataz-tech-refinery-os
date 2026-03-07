@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from rataz_tech.core.models import PipelineResult
+from rataz_tech.core.models import PageIndexBuildResult, PipelineResult
 
 
 class HealthResponse(BaseModel):
@@ -36,3 +36,10 @@ class StoredExtractionResponse(BaseModel):
     trace_id: str
     extracted_at_utc: datetime
     pipeline_result: PipelineResult
+
+
+class StoredPageIndexResponse(BaseModel):
+    document_id: str
+    trace_id: str
+    built_at_utc: datetime
+    pageindex: PageIndexBuildResult

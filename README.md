@@ -25,13 +25,14 @@ Open-source document intelligence engine for deterministic extraction, provenanc
 
 ## MVP Features
 
-- Modular stages: extraction, normalization, chunking, indexing, querying.
+- Five executable stages: triage, structure extraction, semantic chunking, page index builder, query interface.
 - Strategy + Factory + Adapter patterns.
 - Config-driven extraction triage and fallback chain.
 - Pydantic typed outputs across pipeline and API.
 - Trace IDs + request audit trail.
 - Persistent storage backends for audit/extraction history (`memory` and `sqlite`).
 - Amharic + English localization support.
+- PageIndex tree build and query (`/pageindex/{document_id}`, `/pageindex/query`).
 
 ## Run Locally
 
@@ -56,6 +57,8 @@ docker run -p 8000:8000 refinery-os
 - `POST /query`
 - `GET /audit/requests`
 - `GET /extractions/{document_id}`
+- `GET /pageindex/{document_id}`
+- `POST /pageindex/query`
 
 ## Config
 

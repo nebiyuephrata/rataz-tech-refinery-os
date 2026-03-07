@@ -54,6 +54,17 @@ def test_ingest_query_and_request_audit() -> None:
     assert extraction_body["document_id"] == doc_id
     assert extraction_body["pipeline_result"]["trace_id"].startswith("ingest-")
 
+    pageindex_resp = client.get(f"/pageindex/{doc_id}")
+    assert pageindex_resp.status_code == 200
+    assert pageindex_resp.json()["document_id"] == doc_id
+
+    pageindex_query = client.post(
+        "/pageindex/query",
+        json={"document_id": doc_id, "query": "traceable provenance", "top_k": 3},
+    )
+    assert pageindex_query.status_code == 200
+    assert pageindex_query.json()["document_id"] == doc_id
+
 
 def test_file_ingest_text() -> None:
     client = TestClient(create_app("configs/settings.yaml"))

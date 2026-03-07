@@ -12,9 +12,17 @@ from rataz_tech.api.models import (
     RequestAuditListResponse,
     RequestAuditRecord,
     StoredExtractionResponse,
+    StoredPageIndexResponse,
 )
 from rataz_tech.api.services import APIKeyAuthService, FileIngestService, build_request_store
-from rataz_tech.core.models import DocumentInput, PipelineResult, QueryRequest, QueryResponse
+from rataz_tech.core.models import (
+    DocumentInput,
+    PageIndexQueryRequest,
+    PageIndexQueryResponse,
+    PipelineResult,
+    QueryRequest,
+    QueryResponse,
+)
 from rataz_tech.main import build_pipeline
 
 
@@ -48,6 +56,9 @@ def create_app(config_path: str | None = None) -> FastAPI:
     def ingest(doc: DocumentInput, _: None = Depends(auth.verify)) -> PipelineResult:
         result = pipeline.ingest(doc)
         store.save_extraction(result)
+        built = pipeline.get_pageindex(doc.document_id)
+        if built is not None:
+            store.save_pageindex(built)
         store.add_audit(
             RequestAuditRecord(
                 route="/ingest",
@@ -77,6 +88,9 @@ def create_app(config_path: str | None = None) -> FastAPI:
             )
         )
         store.save_extraction(result)
+        built = pipeline.get_pageindex(doc_id)
+        if built is not None:
+            store.save_pageindex(built)
         store.add_audit(
             RequestAuditRecord(
                 route="/ingest/file",
@@ -116,6 +130,27 @@ def create_app(config_path: str | None = None) -> FastAPI:
         if item is None:
             raise HTTPException(status_code=404, detail=f"No extraction found for document_id={document_id}")
         return item
+
+    @app.get("/pageindex/{document_id}", response_model=StoredPageIndexResponse, responses=error_responses)
+    def get_pageindex(document_id: str, _: None = Depends(auth.verify)) -> StoredPageIndexResponse:
+        item = store.get_pageindex(document_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"No page index found for document_id={document_id}")
+        return item
+
+    @app.post("/pageindex/query", response_model=PageIndexQueryResponse, responses=error_responses)
+    def query_pageindex(request: PageIndexQueryRequest, _: None = Depends(auth.verify)) -> PageIndexQueryResponse:
+        response = pipeline.query_pageindex(request)
+        store.add_audit(
+            RequestAuditRecord(
+                route="/pageindex/query",
+                method="POST",
+                trace_id=response.trace_id,
+                document_id=request.document_id,
+                timestamp_utc=datetime.now(timezone.utc),
+            )
+        )
+        return response
 
     return app
 

@@ -14,9 +14,9 @@ from typing import Deque, Optional
 from fastapi import Header, HTTPException, UploadFile
 from pypdf import PdfReader
 
-from rataz_tech.api.models import RequestAuditRecord, StoredExtractionResponse
+from rataz_tech.api.models import RequestAuditRecord, StoredExtractionResponse, StoredPageIndexResponse
 from rataz_tech.core.config import ApiConfig, StorageConfig
-from rataz_tech.core.models import PipelineResult
+from rataz_tech.core.models import PageIndexBuildResult, PipelineResult
 
 
 class APIKeyAuthService:
@@ -50,11 +50,20 @@ class RequestStore(ABC):
     def get_latest_extraction(self, document_id: str) -> Optional[StoredExtractionResponse]:
         raise NotImplementedError
 
+    @abstractmethod
+    def save_pageindex(self, pageindex: PageIndexBuildResult) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_pageindex(self, document_id: str) -> Optional[StoredPageIndexResponse]:
+        raise NotImplementedError
+
 
 class InMemoryRequestStore(RequestStore):
     def __init__(self, max_audit_records: int, max_extraction_records: int) -> None:
         self._audit: Deque[RequestAuditRecord] = deque(maxlen=max_audit_records)
         self._latest_by_doc: dict[str, StoredExtractionResponse] = {}
+        self._pageindex_by_doc: dict[str, StoredPageIndexResponse] = {}
         self._max_extraction_records = max_extraction_records
 
     def add_audit(self, record: RequestAuditRecord) -> None:
@@ -83,6 +92,17 @@ class InMemoryRequestStore(RequestStore):
 
     def get_latest_extraction(self, document_id: str) -> Optional[StoredExtractionResponse]:
         return self._latest_by_doc.get(document_id)
+
+    def save_pageindex(self, pageindex: PageIndexBuildResult) -> None:
+        self._pageindex_by_doc[pageindex.document_id] = StoredPageIndexResponse(
+            document_id=pageindex.document_id,
+            trace_id=pageindex.trace_id,
+            built_at_utc=pageindex.built_at_utc,
+            pageindex=pageindex,
+        )
+
+    def get_pageindex(self, document_id: str) -> Optional[StoredPageIndexResponse]:
+        return self._pageindex_by_doc.get(document_id)
 
 
 class SQLiteRequestStore(RequestStore):
@@ -115,9 +135,18 @@ class SQLiteRequestStore(RequestStore):
                     payload_json TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS page_index (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_id TEXT NOT NULL,
+                    trace_id TEXT NOT NULL,
+                    built_at_utc TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_request_audit_route ON request_audit(route);
                 CREATE INDEX IF NOT EXISTS idx_request_audit_document_id ON request_audit(document_id);
                 CREATE INDEX IF NOT EXISTS idx_extraction_result_document_id ON extraction_result(document_id);
+                CREATE INDEX IF NOT EXISTS idx_page_index_document_id ON page_index(document_id);
                 """
             )
 
@@ -227,6 +256,44 @@ class SQLiteRequestStore(RequestStore):
             trace_id=row["trace_id"],
             extracted_at_utc=datetime.fromisoformat(row["extracted_at_utc"]),
             pipeline_result=PipelineResult.model_validate_json(row["payload_json"]),
+        )
+
+    def save_pageindex(self, pageindex: PageIndexBuildResult) -> None:
+        payload = json.dumps(pageindex.model_dump(mode="json"), ensure_ascii=False)
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO page_index(document_id, trace_id, built_at_utc, payload_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    pageindex.document_id,
+                    pageindex.trace_id,
+                    pageindex.built_at_utc.isoformat(),
+                    payload,
+                ),
+            )
+
+    def get_pageindex(self, document_id: str) -> Optional[StoredPageIndexResponse]:
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT document_id, trace_id, built_at_utc, payload_json
+                FROM page_index
+                WHERE document_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (document_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        pageindex = PageIndexBuildResult.model_validate_json(row["payload_json"])
+        return StoredPageIndexResponse(
+            document_id=row["document_id"],
+            trace_id=row["trace_id"],
+            built_at_utc=datetime.fromisoformat(row["built_at_utc"]),
+            pageindex=pageindex,
         )
 
 

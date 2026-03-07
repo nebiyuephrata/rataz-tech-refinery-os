@@ -132,6 +132,9 @@ class PageIndexNode(BaseModel):
     title: str
     page_start: int = Field(ge=1)
     page_end: int = Field(ge=1)
+    summary: str = ""
+    keywords: List[str] = Field(default_factory=list)
+    chunk_ids: List[str] = Field(default_factory=list)
     children: List["PageIndexNode"] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -261,6 +264,39 @@ class QueryResponse(BaseModel):
     hits: List[QueryHit]
     escalated: bool = False
     reason: Optional[str] = None
+    audit: List[AuditEvent]
+
+
+class PageIndexBuildResult(BaseModel):
+    document_id: str
+    trace_id: str = ""
+    root: PageIndexNode
+    node_count: int = Field(ge=1)
+    built_at_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class PageIndexQueryRequest(BaseModel):
+    document_id: str
+    query: str
+    top_k: int = Field(ge=1, le=20, default=5)
+
+
+class PageIndexHit(BaseModel):
+    node_id: str
+    title: str
+    score: float
+    summary: str
+    page_start: int = Field(ge=1)
+    page_end: int = Field(ge=1)
+    reasoning_path: List[str] = Field(default_factory=list)
+    provenance: List[ProvenanceChain] = Field(default_factory=list)
+
+
+class PageIndexQueryResponse(BaseModel):
+    document_id: str
+    query: str
+    trace_id: str = ""
+    hits: List[PageIndexHit]
     audit: List[AuditEvent]
 
 
