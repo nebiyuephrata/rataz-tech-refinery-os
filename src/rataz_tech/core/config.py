@@ -61,6 +61,12 @@ class ProvenanceQualityConfig(BaseModel):
     min_overall_score: float = Field(default=0.75, ge=0.0, le=1.0)
 
 
+class ExtractionAdapterConfig(BaseModel):
+    layout: str = "docling_layout"
+    ocr: str = "tesseract_ocr"
+    table: str = "camelot_table"
+
+
 class ExtractionConfig(BaseModel):
     default_strategy: str
     fallback_chain: List[str]
@@ -82,6 +88,7 @@ class ExtractionConfig(BaseModel):
     escalation: EscalationConfig
     vision_budget: VisionBudgetConfig
     provenance_quality: ProvenanceQualityConfig = Field(default_factory=ProvenanceQualityConfig)
+    adapters: ExtractionAdapterConfig = Field(default_factory=ExtractionAdapterConfig)
 
 
 class ApiConfig(BaseModel):

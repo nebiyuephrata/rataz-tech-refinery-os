@@ -29,10 +29,10 @@ from rataz_tech.core.models import (
 )
 from rataz_tech.extraction.layout_adapters import LayoutAdapter, build_layout_adapter
 from rataz_tech.extraction.ocr_adapters import (
-    CamelotTableAdapter,
     OCRAdapter,
     TableAdapter,
-    TesseractOCRAdapter,
+    build_ocr_adapter,
+    build_table_adapter,
 )
 from rataz_tech.extraction.pdf_parsers import parse_pdf_blocks, resolve_source_path
 
@@ -383,13 +383,15 @@ class VisionAugmentedExtractionStrategy(_BaseStrategy):
         self,
         budget: VisionBudgetConfig,
         tool_name: str = "vision_augmented",
+        ocr_provider_name: str = "tesseract_ocr",
+        table_provider_name: str = "camelot_table",
         ocr_adapter: OCRAdapter | None = None,
         table_adapter: TableAdapter | None = None,
     ) -> None:
         self._budget = budget
         self._tool_name = tool_name
-        self._ocr_adapter = ocr_adapter or TesseractOCRAdapter()
-        self._table_adapter = table_adapter or CamelotTableAdapter()
+        self._ocr_adapter = ocr_adapter or build_ocr_adapter(ocr_provider_name)
+        self._table_adapter = table_adapter or build_table_adapter(table_provider_name)
 
     @property
     def strategy_name(self) -> str:

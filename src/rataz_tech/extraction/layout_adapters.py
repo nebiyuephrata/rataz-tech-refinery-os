@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Callable, Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -91,10 +91,18 @@ class MinerULayoutAdapter(LayoutAdapter):
         return LayoutAdapterResult(blocks=blocks)
 
 
+_LAYOUT_ADAPTER_REGISTRY: Dict[str, Callable[[], LayoutAdapter]] = {
+    "docling_layout": DoclingLayoutAdapter,
+    "mineru_layout": MinerULayoutAdapter,
+}
+
+
+def register_layout_adapter(name: str, factory: Callable[[], LayoutAdapter]) -> None:
+    _LAYOUT_ADAPTER_REGISTRY[name] = factory
+
+
 def build_layout_adapter(tool_name: str) -> LayoutAdapter:
-    if tool_name == "docling_layout":
-        return DoclingLayoutAdapter()
-    if tool_name == "mineru_layout":
-        return MinerULayoutAdapter()
+    if tool_name in _LAYOUT_ADAPTER_REGISTRY:
+        return _LAYOUT_ADAPTER_REGISTRY[tool_name]()
     # Fallback: use docling-style deterministic parser contract
     return DoclingLayoutAdapter()

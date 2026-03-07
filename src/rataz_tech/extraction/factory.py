@@ -18,7 +18,12 @@ def _strategy_by_name(name: str, settings: Settings) -> ExtractionStrategy:
     if name in {"docling_layout", "mineru_layout", "camelot_table", "pdfplumber_text", "pymupdf_text"}:
         return LayoutAwareExtractionStrategy(name)
     if name in {"vision_augmented", "tesseract_ocr"}:
-        return VisionAugmentedExtractionStrategy(settings.extraction.vision_budget, tool_name=name)
+        return VisionAugmentedExtractionStrategy(
+            settings.extraction.vision_budget,
+            tool_name=name,
+            ocr_provider_name=settings.extraction.adapters.ocr,
+            table_provider_name=settings.extraction.adapters.table,
+        )
     raise ValueError(f"Unknown extractor strategy: {name}")
 
 

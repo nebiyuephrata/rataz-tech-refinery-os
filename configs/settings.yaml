@@ -91,6 +91,11 @@ extraction:
     require_content_hash_match: true
     min_overall_score: 0.75
 
+  adapters:
+    layout: "docling_layout"
+    ocr: "tesseract_ocr"
+    table: "camelot_table"
+
 api:
   require_api_key: false
   api_key_env_var: "RATAZ_TECH_API_KEY"

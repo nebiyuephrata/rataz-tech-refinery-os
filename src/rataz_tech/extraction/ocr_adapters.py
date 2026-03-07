@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Callable, Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -90,3 +90,31 @@ class CamelotTableAdapter(TableAdapter):
             rows = [TableRow(values=[v.strip() for v in ln.split(",")]) for ln in lines[1:] if "," in ln]
             return TableAdapterResult(headers=headers, rows=rows, bbox=BBox(x0=0, y0=0, x1=100, y1=40), page=1)
         return TableAdapterResult(headers=[], rows=[], bbox=BBox(x0=0, y0=0, x1=1, y1=1), page=1)
+
+
+_OCR_ADAPTER_REGISTRY: Dict[str, Callable[[], OCRAdapter]] = {
+    "tesseract_ocr": TesseractOCRAdapter,
+}
+_TABLE_ADAPTER_REGISTRY: Dict[str, Callable[[], TableAdapter]] = {
+    "camelot_table": CamelotTableAdapter,
+}
+
+
+def register_ocr_adapter(name: str, factory: Callable[[], OCRAdapter]) -> None:
+    _OCR_ADAPTER_REGISTRY[name] = factory
+
+
+def register_table_adapter(name: str, factory: Callable[[], TableAdapter]) -> None:
+    _TABLE_ADAPTER_REGISTRY[name] = factory
+
+
+def build_ocr_adapter(name: str) -> OCRAdapter:
+    if name in _OCR_ADAPTER_REGISTRY:
+        return _OCR_ADAPTER_REGISTRY[name]()
+    return TesseractOCRAdapter()
+
+
+def build_table_adapter(name: str) -> TableAdapter:
+    if name in _TABLE_ADAPTER_REGISTRY:
+        return _TABLE_ADAPTER_REGISTRY[name]()
+    return CamelotTableAdapter()
