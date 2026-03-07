@@ -55,10 +55,32 @@ docker run -p 8000:8000 refinery-os
 - `POST /ingest`
 - `POST /ingest/file`
 - `POST /query`
+- `POST /query/agent`
+- `POST /query/structured`
 - `GET /audit/requests`
+- `POST /audit/claim`
 - `GET /extractions/{document_id}`
 - `GET /pageindex/{document_id}`
 - `POST /pageindex/query`
+
+## Frontend (Vite + React + TypeScript + Tailwind)
+
+Modern neon UI with:
+- drag/drop file upload to `/ingest/file`
+- realtime request feed (polling `/audit/requests`)
+- extraction stage status timeline
+- query panel with provenance-ready responses
+- dark/light theme toggle
+- React hooks with memoization (`useMemo`) and stable handlers (`useCallback`)
+
+Run frontend:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
 
 ## Config
 

@@ -1,0 +1,39 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #060914;
+  --bg-soft: #0d1324;
+  --text: #f3f7ff;
+  --text-soft: #b2c1da;
+  --accent: #2dd4bf;
+  --accent-2: #f472b6;
+  --panel: rgba(10, 18, 35, 0.75);
+}
+
+.light {
+  --bg: #eef3ff;
+  --bg-soft: #ffffff;
+  --text: #11142b;
+  --text-soft: #4d5675;
+  --accent: #0f766e;
+  --accent-2: #be185d;
+  --panel: rgba(255, 255, 255, 0.85);
+}
+
+body {
+  font-family: "Manrope", sans-serif;
+  background: radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 35%),
+    radial-gradient(circle at bottom right, rgba(244, 114, 182, 0.18), transparent 35%),
+    var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.neon-border {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.25) inset, 0 0 25px rgba(45, 212, 191, 0.2);
+}
