@@ -54,6 +54,13 @@ class EscalationConfig(BaseModel):
     review_on_final_low_confidence: bool = True
 
 
+class ProvenanceQualityConfig(BaseModel):
+    min_unit_spatial_ratio: float = Field(default=0.9, ge=0.0, le=1.0)
+    min_chain_bbox_ratio: float = Field(default=0.9, ge=0.0, le=1.0)
+    require_content_hash_match: bool = True
+    min_overall_score: float = Field(default=0.75, ge=0.0, le=1.0)
+
+
 class ExtractionConfig(BaseModel):
     default_strategy: str
     fallback_chain: List[str]
@@ -74,6 +81,7 @@ class ExtractionConfig(BaseModel):
 
     escalation: EscalationConfig
     vision_budget: VisionBudgetConfig
+    provenance_quality: ProvenanceQualityConfig = Field(default_factory=ProvenanceQualityConfig)
 
 
 class ApiConfig(BaseModel):

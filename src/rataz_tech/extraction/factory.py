@@ -8,6 +8,7 @@ from rataz_tech.extraction.strategies import (
     LayoutAwareExtractionStrategy,
     VisionAugmentedExtractionStrategy,
 )
+from rataz_tech.extraction.provenance_quality import evaluate_provenance_quality
 from rataz_tech.extraction.triage import build_triage_decision
 
 
@@ -76,6 +77,9 @@ class AutoTriageExtractionStrategy(ExtractionStrategy):
         assert final_result is not None
         final_result.profile = decision.profile
         final_result.escalation_path = escalation_path
+        quality = evaluate_provenance_quality(final_result, self._settings.extraction.provenance_quality)
+        if quality.review_required:
+            final_result.review_required = True
 
         final_result.audit.append(
             AuditEvent(
@@ -90,6 +94,19 @@ class AutoTriageExtractionStrategy(ExtractionStrategy):
                     "strategy_confidence": f"{final_result.strategy_confidence:.2f}",
                     "escalation_path": ",".join(escalation_path),
                     "review_required": str(final_result.review_required).lower(),
+                },
+            )
+        )
+        final_result.audit.append(
+            AuditEvent(
+                stage=StageName.EXTRACTION,
+                message="Provenance quality gate evaluated",
+                metadata={
+                    "quality_score": str(quality.score),
+                    "unit_spatial_ratio": str(quality.unit_spatial_ratio),
+                    "chain_bbox_ratio": str(quality.chain_bbox_ratio),
+                    "content_hash_match_ratio": str(quality.content_hash_match_ratio),
+                    "review_required": str(quality.review_required).lower(),
                 },
             )
         )

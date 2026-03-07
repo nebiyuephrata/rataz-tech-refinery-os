@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import hashlib
 import math
 from typing import List
 
@@ -38,7 +39,8 @@ class HashingEmbedder(Embedder):
         if not toks:
             return vec
         for tok in toks:
-            idx = hash(tok) % self.dim
+            token_digest = hashlib.sha1(tok.encode("utf-8", errors="ignore")).hexdigest()
+            idx = int(token_digest[:8], 16) % self.dim
             vec[idx] += 1.0
         norm = math.sqrt(sum(v * v for v in vec)) or 1.0
         return [v / norm for v in vec]
