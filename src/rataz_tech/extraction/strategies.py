@@ -28,6 +28,12 @@ from rataz_tech.core.models import (
     StageName,
 )
 from rataz_tech.extraction.layout_adapters import LayoutAdapter, build_layout_adapter
+from rataz_tech.extraction.ocr_adapters import (
+    CamelotTableAdapter,
+    OCRAdapter,
+    TableAdapter,
+    TesseractOCRAdapter,
+)
 from rataz_tech.extraction.pdf_parsers import parse_pdf_blocks, resolve_source_path
 
 
@@ -373,9 +379,17 @@ class LayoutAwareExtractionStrategy(_BaseStrategy):
 
 
 class VisionAugmentedExtractionStrategy(_BaseStrategy):
-    def __init__(self, budget: VisionBudgetConfig, tool_name: str = "vision_augmented") -> None:
+    def __init__(
+        self,
+        budget: VisionBudgetConfig,
+        tool_name: str = "vision_augmented",
+        ocr_adapter: OCRAdapter | None = None,
+        table_adapter: TableAdapter | None = None,
+    ) -> None:
         self._budget = budget
         self._tool_name = tool_name
+        self._ocr_adapter = ocr_adapter or TesseractOCRAdapter()
+        self._table_adapter = table_adapter or CamelotTableAdapter()
 
     @property
     def strategy_name(self) -> str:
@@ -416,16 +430,49 @@ class VisionAugmentedExtractionStrategy(_BaseStrategy):
                 ],
             )
 
-        confidence = 0.88
-        prov = self._base_provenance(document, confidence)
-        unit = ExtractedUnit(unit_id=f"{document.document_id}:u0", text=document.content, provenance=prov)
-        extracted_document = self._build_extracted_document(
-            document,
-            profile,
-            document.content,
-            ChunkType.FIGURE,
-            include_figure=True,
-        )
+        ocr_available = self._ocr_adapter.available()
+        table_available = self._table_adapter.available()
+
+        ocr_blocks = self._ocr_adapter.parse(document).blocks if ocr_available else []
+        table_result = self._table_adapter.parse(document) if table_available else None
+
+        confidence = 0.88 if ocr_available else 0.76
+        units: list[ExtractedUnit] = []
+        for i, block in enumerate(ocr_blocks):
+            units.append(
+                ExtractedUnit(
+                    unit_id=f"{document.document_id}:u{i}",
+                    text=block.text,
+                    provenance=ProvenanceRecord(
+                        source_uri=document.source_uri,
+                        extractor=self.strategy_name,
+                        record_id=f"{document.document_id}:u{i}",
+                        confidence=confidence,
+                        spatial=SpatialProvenance(
+                            page=block.page,
+                            x0=block.bbox.x0,
+                            y0=block.bbox.y0,
+                            x1=block.bbox.x1,
+                            y1=block.bbox.y1,
+                        ),
+                    ),
+                )
+            )
+        if not units:
+            prov = self._base_provenance(document, confidence)
+            units = [ExtractedUnit(unit_id=f"{document.document_id}:u0", text=document.content, provenance=prov)]
+
+        extracted_document = self._build_extracted_document_from_units(document, profile, units)
+        if table_result and table_result.headers:
+            extracted_document.tables = [
+                ExtractedTable(
+                    table_id=f"{document.document_id}:tbl0",
+                    headers=table_result.headers,
+                    rows=[r.values for r in table_result.rows],
+                    page_number=table_result.page,
+                    bounding_box=table_result.bbox,
+                )
+            ]
 
         return ExtractionResult(
             document_id=document.document_id,
@@ -433,13 +480,17 @@ class VisionAugmentedExtractionStrategy(_BaseStrategy):
             extracted_document=extracted_document,
             strategy_used=self.strategy_name,
             strategy_confidence=confidence,
-            units=[unit],
+            units=units,
             audit=[
                 AuditEvent(
                     stage=StageName.EXTRACTION,
                     message="Vision-augmented extraction completed",
                     metadata={
                         "tier": self.tier_name,
+                        "ocr_provider": self._ocr_adapter.provider_name,
+                        "table_provider": self._table_adapter.provider_name,
+                        "ocr_available": str(ocr_available).lower(),
+                        "table_available": str(table_available).lower(),
                         "estimated_tokens": str(estimated_tokens),
                         "estimated_cost_usd": f"{estimated_cost:.6f}",
                     },
