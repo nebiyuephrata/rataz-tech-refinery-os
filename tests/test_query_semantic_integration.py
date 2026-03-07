@@ -17,7 +17,7 @@ def _seed_store() -> InvertedIndexStore:
     store.provenance["c2"] = [
         ProvenanceRecord(source_uri="local://d", extractor="test", record_id="p2", confidence=1.0)
     ]
-    store.postings["revenue"].append("c1")
+    store.postings["revenue"].add("c1")
     return store
 
 

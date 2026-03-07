@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, Set
 
 from rataz_tech.core.models import AuditEvent, ChunkingResult, IndexResult, IndexedChunk, StageName
 from rataz_tech.core.text import tokenize
@@ -18,7 +18,7 @@ class InvertedIndexStore:
     def __init__(self) -> None:
         self.chunks: Dict[str, str] = {}
         self.provenance: Dict[str, list] = {}
-        self.postings: Dict[str, List[str]] = defaultdict(list)
+        self.postings: Dict[str, Set[str]] = defaultdict(set)
 
 
 class InvertedIndexingStrategy(IndexingStrategy):
@@ -32,7 +32,7 @@ class InvertedIndexingStrategy(IndexingStrategy):
             self.store.provenance[chunk.chunk_id] = chunk.provenance
             tokens = tokenize(chunk.text)
             for tok in set(tokens):
-                self.store.postings[tok].append(chunk.chunk_id)
+                self.store.postings[tok].add(chunk.chunk_id)
             indexed.append(IndexedChunk(chunk_id=chunk.chunk_id, text=chunk.text, token_count=len(tokens)))
 
         return IndexResult(

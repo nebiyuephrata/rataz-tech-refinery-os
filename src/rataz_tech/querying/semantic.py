@@ -143,12 +143,17 @@ class HybridRetriever:
         self.embedder = embedder or HashingEmbedder()
         self.vector_store = vector_store or InMemoryVectorStore()
         self._chunks: dict[str, Chunk] = {}
+        self._chunk_hashes: dict[str, str] = {}
 
     def add_chunks(self, chunks: List[Chunk]) -> None:
         for c in chunks:
+            content_hash = hashlib.sha256(c.text.encode("utf-8", errors="ignore")).hexdigest()
+            if c.chunk_id in self._chunk_hashes and self._chunk_hashes[c.chunk_id] == content_hash:
+                continue
             self._chunks[c.chunk_id] = c
             vec = self.embedder.embed(c.text)
             self.vector_store.add(c.chunk_id, vec)
+            self._chunk_hashes[c.chunk_id] = content_hash
 
     def _lexical_scores(self, query: str) -> dict[str, float]:
         query_tokens = set(tokenize(query))

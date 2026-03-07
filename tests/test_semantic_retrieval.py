@@ -30,3 +30,24 @@ def test_hybrid_retriever_falls_back_to_lexical_when_disabled() -> None:
     hits = retriever.query("alpha", top_k=2)
     assert hits
     assert hits[0].chunk_id == "c1"
+
+class CountingEmbedder:
+    provider_name = "counting"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def embed(self, text: str) -> list[float]:
+        self.calls += 1
+        return [1.0, 0.0]
+
+
+def test_hybrid_retriever_skips_reembedding_unchanged_chunks() -> None:
+    embedder = CountingEmbedder()
+    retriever = HybridRetriever(SemanticQueryConfig(enabled=True, top_k=5), embedder=embedder)
+    chunk = _chunk("c1", "same text")
+
+    retriever.add_chunks([chunk])
+    retriever.add_chunks([chunk])
+
+    assert embedder.calls == 1

@@ -30,6 +30,7 @@ def _strategy_by_name(name: str, settings: Settings) -> ExtractionStrategy:
 class AutoTriageExtractionStrategy(ExtractionStrategy):
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._strategy_cache: dict[str, ExtractionStrategy] = {}
 
     @property
     def strategy_name(self) -> str:
@@ -54,7 +55,9 @@ class AutoTriageExtractionStrategy(ExtractionStrategy):
 
     def _strategy_for_tier(self, tier: ExtractionCostTier) -> ExtractionStrategy:
         name = self._settings.extraction.strategy_by_cost.get(tier.value, self._settings.extraction.default_strategy)
-        return _strategy_by_name(name, self._settings)
+        if name not in self._strategy_cache:
+            self._strategy_cache[name] = _strategy_by_name(name, self._settings)
+        return self._strategy_cache[name]
 
     def extract(self, document: DocumentInput, *_: object) -> ExtractionResult:
         decision = build_triage_decision(document, self._settings.extraction)
