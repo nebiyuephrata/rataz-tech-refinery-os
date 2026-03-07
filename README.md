@@ -80,3 +80,11 @@ Tier A fast text now attempts real PDF parsing in this order:
 ```bash
 uv run --with pytest pytest -q
 ```
+
+## Benchmark
+
+Run extraction benchmark on a local corpus (`*.txt` naming pattern like `NF_01.txt`, `SL_01.txt`, `MA_01.txt`, `TF_01.txt`):
+
+```bash
+rataz-tech-benchmark --corpus ./corpus --output docs/TEST_RESULTS.generated.md
+```

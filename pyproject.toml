@@ -39,6 +39,7 @@ extract = [
 rataz-tech-demo = "rataz_tech.main:run_demo"
 rataz-tech-ui = "rataz_tech.ui.kivy_app:run_ui"
 rataz-tech-api = "rataz_tech.api.server:run_api"
+rataz-tech-benchmark = "rataz_tech.benchmark.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
