@@ -15,8 +15,11 @@ def test_pipeline_end_to_end() -> None:
     assert result.extraction.units
     assert result.chunking.chunks
     assert result.chunking.chunks[0].provenance
+    assert result.extraction.extracted_document is not None
+    assert result.extraction.extracted_document.page_index.children
     assert result.trace_id.startswith("ingest-")
     assert all(a.trace_id == result.trace_id for a in result.indexing.audit)
+    assert any(a.message == "Stage 4 page index built" for a in result.chunking.audit)
 
     resp = pipeline.query(QueryRequest(query="provenance", language="en", max_results=3))
     assert isinstance(resp.model_dump(), dict)
