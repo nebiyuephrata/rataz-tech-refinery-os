@@ -6,7 +6,7 @@ Open-source document intelligence engine for deterministic extraction, provenanc
 
 | Layer | Tool |
 |---|---|
-| PDF reading | pdfplumber / PyMuPDF adapters |
+| PDF reading | pdfplumber / PyMuPDF (implemented for Tier A) |
 | Layout extraction | Docling / MinerU adapters |
 | OCR | Tesseract adapter |
 | Table extraction | Camelot adapter |
@@ -67,6 +67,13 @@ Runtime controls are in `configs/settings.yaml`:
 - query confidence/escalation controls
 - API auth, upload limits, and audit retention
 - storage backend (`memory` or `sqlite`) and SQLite path/retention caps
+
+## Tier A Backends
+
+Tier A fast text now attempts real PDF parsing in this order:
+1. `pdfplumber`
+2. `PyMuPDF`
+3. deterministic plain-text fallback
 
 ## Test
 

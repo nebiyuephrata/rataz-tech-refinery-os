@@ -27,6 +27,7 @@ from rataz_tech.core.models import (
     SpatialProvenance,
     StageName,
 )
+from rataz_tech.extraction.pdf_parsers import parse_pdf_blocks, resolve_source_path
 
 
 class ExtractionStrategy(ABC):
@@ -134,6 +135,63 @@ class _BaseStrategy(ExtractionStrategy):
             ],
         )
 
+    def _build_extracted_document_from_units(
+        self,
+        document: DocumentInput,
+        profile: DocumentProfile,
+        units: list[ExtractedUnit],
+    ) -> ExtractedDocument:
+        if not units:
+            return self._build_extracted_document(document, profile, "", ChunkType.TEXT)
+
+        text_blocks: list[LogicalDocumentUnit] = []
+        provenance_chains: list[ProvenanceChain] = []
+        all_pages: list[int] = []
+
+        for i, unit in enumerate(units):
+            spatial = unit.provenance.spatial
+            page = spatial.page if spatial else 1
+            all_pages.append(page)
+            content_hash = self._hash(unit.text)
+            bbox = (
+                BBox(x0=spatial.x0, y0=spatial.y0, x1=spatial.x1, y1=spatial.y1)
+                if spatial
+                else BBox(x0=0, y0=0, x1=1, y1=1)
+            )
+            text_blocks.append(
+                LogicalDocumentUnit(
+                    ldu_id=f"{document.document_id}:ldu{i}",
+                    content=unit.text,
+                    chunk_type=ChunkType.TEXT,
+                    token_count=len(unit.text.split()),
+                    page_refs=[PageRef(page_start=page, page_end=page)],
+                    bounding_box=bbox,
+                    content_hash=content_hash,
+                    parent_section="root",
+                    chunk_relationships=[],
+                )
+            )
+            provenance_chains.append(
+                ProvenanceChain(
+                    document_name=document.source_uri,
+                    page_number=page,
+                    bbox=bbox,
+                    content_hash=content_hash,
+                )
+            )
+
+        start_page = min(all_pages)
+        end_page = max(all_pages)
+        return ExtractedDocument(
+            document_id=document.document_id,
+            profile=profile,
+            text_blocks=text_blocks,
+            tables=[],
+            figures=[],
+            page_index=PageIndexNode(node_id="root", title="Document", page_start=start_page, page_end=end_page, children=[]),
+            provenance_chains=provenance_chains,
+        )
+
 
 class FastTextExtractionStrategy(_BaseStrategy):
     @property
@@ -146,6 +204,39 @@ class FastTextExtractionStrategy(_BaseStrategy):
 
     def extract(self, document: DocumentInput, profile: DocumentProfile | None = None) -> ExtractionResult:
         profile = profile or self._fallback_profile(document)
+        parser_used = "plain_text"
+
+        units: list[ExtractedUnit] = []
+        if document.mime_type == "application/pdf":
+            source_path = resolve_source_path(document.source_uri)
+            if source_path:
+                parsed_blocks, parser_used = parse_pdf_blocks(source_path)
+                for i, block in enumerate(parsed_blocks):
+                    units.append(
+                        ExtractedUnit(
+                            unit_id=f"{document.document_id}:u{i}",
+                            text=block.text,
+                            provenance=ProvenanceRecord(
+                                source_uri=document.source_uri,
+                                extractor=self.strategy_name,
+                                record_id=f"{document.document_id}:u{i}",
+                                confidence=1.0,
+                                spatial=SpatialProvenance(
+                                    page=block.page,
+                                    x0=max(0.0, block.x0),
+                                    y0=max(0.0, block.y0),
+                                    x1=max(0.0, block.x1),
+                                    y1=max(0.0, block.y1),
+                                ),
+                            ),
+                        )
+                    )
+
+        if not units:
+            parser_used = "plain_text"
+            prov = self._base_provenance(document, 1.0)
+            units = [ExtractedUnit(unit_id=f"{document.document_id}:u0", text=document.content, provenance=prov)]
+
         # Multi-signal confidence required by rubric.
         char_density_signal = min(1.0, profile.char_density / 1000.0)
         image_signal = 1.0 - profile.image_ratio
@@ -155,9 +246,9 @@ class FastTextExtractionStrategy(_BaseStrategy):
             min(1.0, (0.45 * char_density_signal) + (0.35 * image_signal) + (0.20 * font_signal)),
         )
 
-        prov = self._base_provenance(document, confidence)
-        unit = ExtractedUnit(unit_id=f"{document.document_id}:u0", text=document.content, provenance=prov)
-        extracted_document = self._build_extracted_document(document, profile, document.content, ChunkType.TEXT)
+        for u in units:
+            u.provenance.confidence = confidence
+        extracted_document = self._build_extracted_document_from_units(document, profile, units)
 
         return ExtractionResult(
             document_id=document.document_id,
@@ -165,16 +256,18 @@ class FastTextExtractionStrategy(_BaseStrategy):
             extracted_document=extracted_document,
             strategy_used=self.strategy_name,
             strategy_confidence=confidence,
-            units=[unit],
+            units=units,
             audit=[
                 AuditEvent(
                     stage=StageName.EXTRACTION,
                     message="Fast text extraction completed",
                     metadata={
                         "tier": self.tier_name,
+                        "parser": parser_used,
                         "char_density": f"{profile.char_density:.2f}",
                         "image_ratio": f"{profile.image_ratio:.2f}",
                         "font_metadata": str(profile.font_metadata_present).lower(),
+                        "unit_count": str(len(units)),
                     },
                 )
             ],
