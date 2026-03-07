@@ -18,6 +18,7 @@ class InvertedIndexStore:
     def __init__(self) -> None:
         self.chunks: Dict[str, str] = {}
         self.provenance: Dict[str, list] = {}
+        self.metadata: Dict[str, dict] = {}
         self.postings: Dict[str, Set[str]] = defaultdict(set)
 
 
@@ -30,6 +31,12 @@ class InvertedIndexingStrategy(IndexingStrategy):
         for chunk in chunked.chunks:
             self.store.chunks[chunk.chunk_id] = chunk.text
             self.store.provenance[chunk.chunk_id] = chunk.provenance
+            self.store.metadata[chunk.chunk_id] = {
+                "chunk_type": chunk.chunk_type.value,
+                "page_refs": [p.model_dump() for p in chunk.page_refs],
+                "content_hash": chunk.content_hash,
+                "parent_section": chunk.parent_section or "",
+            }
             tokens = tokenize(chunk.text)
             for tok in set(tokens):
                 self.store.postings[tok].add(chunk.chunk_id)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from rataz_tech.chunking.strategies import ChunkingStrategy
+from rataz_tech.chunking.semantic_engine import build_ldus, ldus_to_chunking_result
 from rataz_tech.core.config import Settings
 from rataz_tech.core.models import (
     AuditEvent,
@@ -52,13 +53,26 @@ class StructureExtractionStage:
 
 
 class SemanticChunkingStage:
-    def __init__(self, normalizer: NormalizationStrategy, chunker: ChunkingStrategy) -> None:
+    def __init__(self, normalizer: NormalizationStrategy, chunker: ChunkingStrategy, max_tokens: int) -> None:
         self.normalizer = normalizer
         self.chunker = chunker
+        self.max_tokens = max(1, max_tokens)
 
     def run(self, extracted: ExtractionResult) -> tuple[NormalizationResult, ChunkingResult]:
         normalized = self.normalizer.normalize(extracted)
-        chunked = self.chunker.chunk(normalized)
+        if (
+            extracted.extracted_document is not None
+            and extracted.units
+            and any((u.text or "").strip() for u in extracted.units)
+        ):
+            ldus = build_ldus(extracted.extracted_document, max_tokens=self.max_tokens)
+            chunked = ldus_to_chunking_result(
+                document_id=extracted.document_id,
+                source_uri=extracted.units[0].provenance.source_uri if extracted.units else f"local://{extracted.document_id}",
+                ldus=ldus,
+            )
+        else:
+            chunked = self.chunker.chunk(normalized)
         return normalized, chunked
 
 

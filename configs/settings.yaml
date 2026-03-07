@@ -10,6 +10,8 @@ pipeline:
   confidence_threshold: 0.6
   enable_semantic_navigation: true
   enable_llm_escalation: false
+  enable_stage_telemetry: true
+  pageindex_output_path: "data/pageindex"
   # Five-rule chunking constitution (self-documenting policy)
   chunking_constitution:
     - "Preserve table integrity; never split header from rows when avoidable"

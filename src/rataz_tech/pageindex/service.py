@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from collections import Counter
+import json
+from pathlib import Path
+import re
 from typing import Iterable
 
 from rataz_tech.core.models import (
     AuditEvent,
+    BBox,
     ChunkingResult,
     PageIndexBuildResult,
     PageIndexHit,
@@ -30,6 +34,8 @@ _STOPWORDS = {
     "is",
     "are",
 }
+_MONEY_RE = re.compile(r"\$?\d+(?:,\d{3})*(?:\.\d+)?")
+_DATE_RE = re.compile(r"\b(?:19|20)\d{2}\b")
 
 
 def _safe_page(chunk) -> int:
@@ -47,9 +53,38 @@ def _count_nodes(node: PageIndexNode) -> int:
     return 1 + sum(_count_nodes(c) for c in node.children)
 
 
+def _key_entities(text: str, top_n: int = 5) -> list[str]:
+    entities = [tok for tok in text.split() if tok[:1].isupper() and len(tok) > 2]
+    ranked = Counter(entities)
+    return [ent.strip(".,:;()") for ent, _ in ranked.most_common(top_n)]
+
+
+def _data_types_present(text: str) -> list[str]:
+    found: list[str] = []
+    if _MONEY_RE.search(text):
+        found.append("numeric")
+    if "$" in text:
+        found.append("currency")
+    if _DATE_RE.search(text):
+        found.append("date")
+    return found or ["text"]
+
+
+class FastSummaryGenerator:
+    provider_name = "fast-local-summary"
+
+    def summarize(self, text: str, max_chars: int = 220) -> str:
+        clean = " ".join(text.split())
+        if not clean:
+            return ""
+        return clean[:max_chars]
+
+
 class PageIndexBuilder:
-    def __init__(self, group_size: int = 5) -> None:
+    def __init__(self, group_size: int = 5, output_path: str = "data/pageindex", summarizer: FastSummaryGenerator | None = None) -> None:
         self.group_size = max(1, group_size)
+        self.output_path = output_path
+        self.summarizer = summarizer or FastSummaryGenerator()
 
     def build(self, chunked: ChunkingResult, trace_id: str = "") -> PageIndexBuildResult:
         chunks = chunked.chunks
@@ -66,7 +101,7 @@ class PageIndexBuilder:
             end_page = max(_safe_page(c) for c in group)
             title_words = (first.text or "section").split()[:6]
             title = " ".join(title_words) or f"Section {len(children) + 1}"
-            summary = text_join[:220]
+            summary = self.summarizer.summarize(text_join)
 
             children.append(
                 PageIndexNode(
@@ -76,7 +111,10 @@ class PageIndexBuilder:
                     page_end=end_page,
                     summary=summary,
                     keywords=_keywords(text_join),
+                    key_entities=_key_entities(text_join),
+                    data_types_present=_data_types_present(text_join),
                     chunk_ids=[c.chunk_id for c in group],
+                    child_sections=[],
                     children=[],
                 )
             )
@@ -88,7 +126,10 @@ class PageIndexBuilder:
             page_end=max(c.page_end for c in children),
             summary=f"Auto-built page index with {len(children)} sections",
             keywords=list(dict.fromkeys(k for c in children for k in c.keywords))[:10],
+            key_entities=list(dict.fromkeys(ent for c in children for ent in c.key_entities))[:20],
+            data_types_present=list(dict.fromkeys(dt for c in children for dt in c.data_types_present)),
             chunk_ids=[],
+            child_sections=[c.title for c in children],
             children=children,
         )
 
@@ -98,6 +139,13 @@ class PageIndexBuilder:
             root=root,
             node_count=_count_nodes(root),
         )
+
+    def serialize(self, built: PageIndexBuildResult) -> str:
+        out_dir = Path(self.output_path)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{built.document_id}.pageindex.json"
+        out_path.write_text(json.dumps(built.model_dump(mode="json"), ensure_ascii=False, indent=2), encoding="utf-8")
+        return str(out_path)
 
 
 class PageIndexRetriever:
@@ -134,6 +182,7 @@ class PageIndexRetriever:
                         ProvenanceChain(
                             document_name=document_id,
                             page_number=node.page_start,
+                            bbox=BBox(x0=0.0, y0=0.0, x1=1.0, y1=1.0),
                             content_hash=f"{node.node_id}-hash",
                         )
                     ],

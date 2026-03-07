@@ -65,6 +65,27 @@ def test_ingest_query_and_request_audit() -> None:
     assert pageindex_query.status_code == 200
     assert pageindex_query.json()["document_id"] == doc_id
 
+    structured = client.post(
+        "/query/structured",
+        json={"document_id": doc_id, "query": "provenance", "limit": 3},
+    )
+    assert structured.status_code == 200
+    assert structured.json()["document_id"] == doc_id
+
+    claim = client.post(
+        "/audit/claim",
+        json={"document_id": doc_id, "claim": "traceable provenance"},
+    )
+    assert claim.status_code == 200
+    assert "verified" in claim.json()
+
+    agent = client.post(
+        "/query/agent",
+        json={"document_id": doc_id, "query": "go to provenance section", "language": "en", "max_results": 3},
+    )
+    assert agent.status_code == 200
+    assert agent.json()["tool_used"] in {"pageindex_navigate", "semantic_search", "structured_query"}
+
 
 def test_file_ingest_text() -> None:
     client = TestClient(create_app("configs/settings.yaml"))
@@ -149,3 +170,9 @@ def test_sqlite_store_persists_extraction_lookup(tmp_path) -> None:
     lookup = client.get("/extractions/sql-doc-1")
     assert lookup.status_code == 200
     assert lookup.json()["document_id"] == "sql-doc-1"
+
+    structured = client.post(
+        "/query/structured",
+        json={"document_id": "sql-doc-1", "query": "revenue", "limit": 3},
+    )
+    assert structured.status_code == 200

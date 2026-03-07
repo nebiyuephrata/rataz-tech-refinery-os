@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import hashlib
 
-from rataz_tech.core.models import AuditEvent, Chunk, ChunkingResult, NormalizationResult, StageName
+from rataz_tech.core.models import AuditEvent, BBox, Chunk, ChunkingResult, NormalizationResult, PageRef, StageName
 
 
 class ChunkingStrategy(ABC):
@@ -32,6 +33,24 @@ class SlidingWindowChunkingStrategy(ChunkingStrategy):
                         text=piece,
                         source_unit_ids=[unit.unit_id],
                         provenance=[unit.provenance],
+                        page_refs=[
+                            PageRef(
+                                page_start=unit.provenance.spatial.page if unit.provenance.spatial else 1,
+                                page_end=unit.provenance.spatial.page if unit.provenance.spatial else 1,
+                            )
+                        ],
+                        bounding_box=(
+                            BBox(
+                                x0=unit.provenance.spatial.x0,
+                                y0=unit.provenance.spatial.y0,
+                                x1=unit.provenance.spatial.x1,
+                                y1=unit.provenance.spatial.y1,
+                            )
+                            if unit.provenance.spatial
+                            else None
+                        ),
+                        parent_section="root",
+                        content_hash=hashlib.sha256(piece.encode("utf-8", errors="ignore")).hexdigest(),
                     )
                 )
                 idx += 1

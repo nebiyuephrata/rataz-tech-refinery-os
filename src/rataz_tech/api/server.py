@@ -16,14 +16,19 @@ from rataz_tech.api.models import (
 )
 from rataz_tech.api.services import APIKeyAuthService, FileIngestService, build_request_store
 from rataz_tech.core.models import (
+    ClaimVerificationRequest,
+    ClaimVerificationResponse,
     DocumentInput,
     PageIndexQueryRequest,
     PageIndexQueryResponse,
     PipelineResult,
     QueryRequest,
     QueryResponse,
+    StructuredQueryRequest,
+    StructuredQueryResponse,
 )
 from rataz_tech.main import build_pipeline
+from rataz_tech.querying.agent import QueryAgent, QueryAgentRequest, QueryAgentResponse
 
 
 def create_app(config_path: str | None = None) -> FastAPI:
@@ -33,6 +38,7 @@ def create_app(config_path: str | None = None) -> FastAPI:
     auth = APIKeyAuthService(pipeline.settings.api)
     file_ingest = FileIngestService(pipeline.settings.api)
     store = build_request_store(pipeline.settings.storage, pipeline.settings.api)
+    query_agent = QueryAgent(pipeline)
 
     error_responses = {
         401: {"model": ApiErrorResponse},
@@ -110,6 +116,48 @@ def create_app(config_path: str | None = None) -> FastAPI:
                 route="/query",
                 method="POST",
                 trace_id=response.trace_id,
+                timestamp_utc=datetime.now(timezone.utc),
+            )
+        )
+        return response
+
+    @app.post("/query/structured", response_model=StructuredQueryResponse, responses=error_responses)
+    def query_structured(request: StructuredQueryRequest, _: None = Depends(auth.verify)) -> StructuredQueryResponse:
+        response = store.structured_query(request.document_id, request.query, request.limit)
+        store.add_audit(
+            RequestAuditRecord(
+                route="/query/structured",
+                method="POST",
+                trace_id=f"structured-{uuid4()}",
+                document_id=request.document_id,
+                timestamp_utc=datetime.now(timezone.utc),
+            )
+        )
+        return response
+
+    @app.post("/query/agent", response_model=QueryAgentResponse, responses=error_responses)
+    def query_agent_endpoint(request: QueryAgentRequest, _: None = Depends(auth.verify)) -> QueryAgentResponse:
+        response = query_agent.answer(request)
+        store.add_audit(
+            RequestAuditRecord(
+                route="/query/agent",
+                method="POST",
+                trace_id=f"agent-{uuid4()}",
+                document_id=request.document_id,
+                timestamp_utc=datetime.now(timezone.utc),
+            )
+        )
+        return response
+
+    @app.post("/audit/claim", response_model=ClaimVerificationResponse, responses=error_responses)
+    def verify_claim(request: ClaimVerificationRequest, _: None = Depends(auth.verify)) -> ClaimVerificationResponse:
+        response = store.verify_claim(request.document_id, request.claim)
+        store.add_audit(
+            RequestAuditRecord(
+                route="/audit/claim",
+                method="POST",
+                trace_id=f"claim-{uuid4()}",
+                document_id=request.document_id,
                 timestamp_utc=datetime.now(timezone.utc),
             )
         )

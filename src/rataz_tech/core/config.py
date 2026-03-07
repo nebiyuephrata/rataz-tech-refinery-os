@@ -20,6 +20,8 @@ class PipelineConfig(BaseModel):
     confidence_threshold: float = Field(ge=0.0, le=1.0)
     enable_semantic_navigation: bool
     enable_llm_escalation: bool
+    enable_stage_telemetry: bool = True
+    pageindex_output_path: str = "data/pageindex"
     chunking_constitution: List[str] = Field(default_factory=list)
     semantic_query: "SemanticQuerySettings" = Field(default_factory=lambda: SemanticQuerySettings())
 

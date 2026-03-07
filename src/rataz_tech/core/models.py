@@ -125,6 +125,7 @@ class LogicalDocumentUnit(BaseModel):
     content_hash: str = Field(min_length=8)
     parent_section: Optional[str] = None
     chunk_relationships: List[str] = Field(default_factory=list)
+    metadata: Dict[str, str] = Field(default_factory=dict)
 
 
 class PageIndexNode(BaseModel):
@@ -134,7 +135,10 @@ class PageIndexNode(BaseModel):
     page_end: int = Field(ge=1)
     summary: str = ""
     keywords: List[str] = Field(default_factory=list)
+    key_entities: List[str] = Field(default_factory=list)
+    data_types_present: List[str] = Field(default_factory=list)
     chunk_ids: List[str] = Field(default_factory=list)
+    child_sections: List[str] = Field(default_factory=list)
     children: List["PageIndexNode"] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -222,6 +226,13 @@ class Chunk(BaseModel):
     text: str
     source_unit_ids: List[str]
     provenance: List[ProvenanceRecord]
+    chunk_type: ChunkType = ChunkType.TEXT
+    page_refs: List[PageRef] = Field(default_factory=lambda: [PageRef(page_start=1, page_end=1)])
+    bounding_box: Optional[BBox] = None
+    parent_section: Optional[str] = None
+    content_hash: str = ""
+    chunk_relationships: List[str] = Field(default_factory=list)
+    metadata: Dict[str, str] = Field(default_factory=dict)
 
 
 class ChunkingResult(BaseModel):
@@ -265,6 +276,43 @@ class QueryResponse(BaseModel):
     escalated: bool = False
     reason: Optional[str] = None
     audit: List[AuditEvent]
+
+
+class NumericalFact(BaseModel):
+    document_id: str
+    metric: str
+    value: float
+    unit: str = ""
+    page_number: int = Field(ge=1, default=1)
+    content_hash: str = Field(min_length=8)
+    source_text: str
+
+
+class StructuredQueryRequest(BaseModel):
+    document_id: str
+    query: str
+    limit: int = Field(default=5, ge=1, le=100)
+
+
+class StructuredQueryResponse(BaseModel):
+    document_id: str
+    query: str
+    rows: List[NumericalFact] = Field(default_factory=list)
+    audit: List[AuditEvent] = Field(default_factory=list)
+
+
+class ClaimVerificationRequest(BaseModel):
+    document_id: str
+    claim: str
+
+
+class ClaimVerificationResponse(BaseModel):
+    document_id: str
+    claim: str
+    verified: bool
+    status: str
+    citation: Optional[ProvenanceChain] = None
+    audit: List[AuditEvent] = Field(default_factory=list)
 
 
 class PageIndexBuildResult(BaseModel):

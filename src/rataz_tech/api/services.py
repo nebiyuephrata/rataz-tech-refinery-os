@@ -16,7 +16,16 @@ from pypdf import PdfReader
 
 from rataz_tech.api.models import RequestAuditRecord, StoredExtractionResponse, StoredPageIndexResponse
 from rataz_tech.core.config import ApiConfig, StorageConfig
-from rataz_tech.core.models import PageIndexBuildResult, PipelineResult
+from rataz_tech.core.models import (
+    AuditEvent,
+    ClaimVerificationResponse,
+    PageIndexBuildResult,
+    PipelineResult,
+    ProvenanceChain,
+    StageName,
+    StructuredQueryResponse,
+)
+from rataz_tech.indexing.facts import extract_numerical_facts, structured_fact_query
 
 
 class APIKeyAuthService:
@@ -56,6 +65,14 @@ class RequestStore(ABC):
 
     @abstractmethod
     def get_pageindex(self, document_id: str) -> Optional[StoredPageIndexResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def structured_query(self, document_id: str, query: str, limit: int = 5) -> StructuredQueryResponse:
+        raise NotImplementedError
+
+    @abstractmethod
+    def verify_claim(self, document_id: str, claim: str) -> ClaimVerificationResponse:
         raise NotImplementedError
 
 
@@ -104,6 +121,58 @@ class InMemoryRequestStore(RequestStore):
     def get_pageindex(self, document_id: str) -> Optional[StoredPageIndexResponse]:
         return self._pageindex_by_doc.get(document_id)
 
+    def structured_query(self, document_id: str, query: str, limit: int = 5) -> StructuredQueryResponse:
+        latest = self._latest_by_doc.get(document_id)
+        if latest is None:
+            return StructuredQueryResponse(
+                document_id=document_id,
+                query=query,
+                rows=[],
+                audit=[AuditEvent(stage=StageName.QUERYING, message="Structured query: document not found")],
+            )
+        facts = extract_numerical_facts(latest.pipeline_result)
+        rows = structured_fact_query(facts, query=query, limit=limit)
+        return StructuredQueryResponse(
+            document_id=document_id,
+            query=query,
+            rows=rows,
+            audit=[AuditEvent(stage=StageName.QUERYING, message="Structured query executed", metadata={"rows": str(len(rows))})],
+        )
+
+    def verify_claim(self, document_id: str, claim: str) -> ClaimVerificationResponse:
+        latest = self._latest_by_doc.get(document_id)
+        if latest is None:
+            return ClaimVerificationResponse(
+                document_id=document_id,
+                claim=claim,
+                verified=False,
+                status="not_found",
+                audit=[AuditEvent(stage=StageName.QUERYING, message="Claim verification failed: document not found")],
+            )
+        claim_lower = claim.lower()
+        for unit in latest.pipeline_result.extraction.units:
+            if claim_lower in (unit.text or "").lower():
+                page = unit.provenance.spatial.page if unit.provenance.spatial else 1
+                return ClaimVerificationResponse(
+                    document_id=document_id,
+                    claim=claim,
+                    verified=True,
+                    status="verified",
+                    citation=ProvenanceChain(
+                        document_name=unit.provenance.source_uri,
+                        page_number=page,
+                        content_hash=f"{unit.unit_id}-hash",
+                    ),
+                    audit=[AuditEvent(stage=StageName.QUERYING, message="Claim verified")],
+                )
+        return ClaimVerificationResponse(
+            document_id=document_id,
+            claim=claim,
+            verified=False,
+            status="unverifiable",
+            audit=[AuditEvent(stage=StageName.QUERYING, message="Claim not found in evidence")],
+        )
+
 
 class SQLiteRequestStore(RequestStore):
     def __init__(self, db_path: str, max_audit_records: int, max_extraction_records: int) -> None:
@@ -147,6 +216,19 @@ class SQLiteRequestStore(RequestStore):
                 CREATE INDEX IF NOT EXISTS idx_request_audit_document_id ON request_audit(document_id);
                 CREATE INDEX IF NOT EXISTS idx_extraction_result_document_id ON extraction_result(document_id);
                 CREATE INDEX IF NOT EXISTS idx_page_index_document_id ON page_index(document_id);
+
+                CREATE TABLE IF NOT EXISTS fact_table (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_id TEXT NOT NULL,
+                    metric TEXT NOT NULL,
+                    value REAL NOT NULL,
+                    unit TEXT NOT NULL,
+                    page_number INTEGER NOT NULL,
+                    content_hash TEXT NOT NULL,
+                    source_text TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_fact_table_document_id ON fact_table(document_id);
+                CREATE INDEX IF NOT EXISTS idx_fact_table_metric ON fact_table(metric);
                 """
             )
 
@@ -212,6 +294,7 @@ class SQLiteRequestStore(RequestStore):
 
     def save_extraction(self, result: PipelineResult) -> None:
         payload = json.dumps(result.model_dump(mode="json"), ensure_ascii=False)
+        facts = extract_numerical_facts(result)
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
@@ -233,6 +316,25 @@ class SQLiteRequestStore(RequestStore):
                 )
                 """,
                 (self._max_extraction_records,),
+            )
+            conn.execute("DELETE FROM fact_table WHERE document_id = ?", (result.extraction.document_id,))
+            conn.executemany(
+                """
+                INSERT INTO fact_table(document_id, metric, value, unit, page_number, content_hash, source_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        fact.document_id,
+                        fact.metric,
+                        fact.value,
+                        fact.unit,
+                        fact.page_number,
+                        fact.content_hash,
+                        fact.source_text,
+                    )
+                    for fact in facts
+                ],
             )
 
     def get_latest_extraction(self, document_id: str) -> Optional[StoredExtractionResponse]:
@@ -294,6 +396,71 @@ class SQLiteRequestStore(RequestStore):
             trace_id=row["trace_id"],
             built_at_utc=datetime.fromisoformat(row["built_at_utc"]),
             pageindex=pageindex,
+        )
+
+    def structured_query(self, document_id: str, query: str, limit: int = 5) -> StructuredQueryResponse:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT document_id, metric, value, unit, page_number, content_hash, source_text
+                FROM fact_table
+                WHERE document_id = ?
+                ORDER BY CASE WHEN INSTR(LOWER(?), LOWER(metric)) > 0 THEN 0 ELSE 1 END, id DESC
+                LIMIT ?
+                """,
+                (document_id, query, limit),
+            ).fetchall()
+        facts = [
+            {
+                "document_id": row["document_id"],
+                "metric": row["metric"],
+                "value": row["value"],
+                "unit": row["unit"],
+                "page_number": row["page_number"],
+                "content_hash": row["content_hash"],
+                "source_text": row["source_text"],
+            }
+            for row in rows
+        ]
+        return StructuredQueryResponse(
+            document_id=document_id,
+            query=query,
+            rows=facts,
+            audit=[AuditEvent(stage=StageName.QUERYING, message="Structured query executed", metadata={"rows": str(len(facts))})],
+        )
+
+    def verify_claim(self, document_id: str, claim: str) -> ClaimVerificationResponse:
+        item = self.get_latest_extraction(document_id)
+        if item is None:
+            return ClaimVerificationResponse(
+                document_id=document_id,
+                claim=claim,
+                verified=False,
+                status="not_found",
+                audit=[AuditEvent(stage=StageName.QUERYING, message="Claim verification failed: document not found")],
+            )
+        claim_lower = claim.lower()
+        for unit in item.pipeline_result.extraction.units:
+            if claim_lower in (unit.text or "").lower():
+                page = unit.provenance.spatial.page if unit.provenance.spatial else 1
+                return ClaimVerificationResponse(
+                    document_id=document_id,
+                    claim=claim,
+                    verified=True,
+                    status="verified",
+                    citation=ProvenanceChain(
+                        document_name=unit.provenance.source_uri,
+                        page_number=page,
+                        content_hash=f"{unit.unit_id}-hash",
+                    ),
+                    audit=[AuditEvent(stage=StageName.QUERYING, message="Claim verified")],
+                )
+        return ClaimVerificationResponse(
+            document_id=document_id,
+            claim=claim,
+            verified=False,
+            status="unverifiable",
+            audit=[AuditEvent(stage=StageName.QUERYING, message="Claim not found in evidence")],
         )
 
 
