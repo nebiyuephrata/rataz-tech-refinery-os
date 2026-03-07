@@ -27,6 +27,7 @@ from rataz_tech.core.models import (
     SpatialProvenance,
     StageName,
 )
+from rataz_tech.extraction.layout_adapters import LayoutAdapter, build_layout_adapter
 from rataz_tech.extraction.pdf_parsers import parse_pdf_blocks, resolve_source_path
 
 
@@ -275,8 +276,9 @@ class FastTextExtractionStrategy(_BaseStrategy):
 
 
 class LayoutAwareExtractionStrategy(_BaseStrategy):
-    def __init__(self, tool_name: str) -> None:
+    def __init__(self, tool_name: str, adapter: LayoutAdapter | None = None) -> None:
         self._tool_name = tool_name
+        self._adapter = adapter or build_layout_adapter(tool_name)
 
     @property
     def strategy_name(self) -> str:
@@ -287,44 +289,65 @@ class LayoutAwareExtractionStrategy(_BaseStrategy):
         return "B_layout_aware"
 
     def _tool_available(self) -> bool:
-        imports = {
-            "docling_layout": "docling",
-            "mineru_layout": "mineru",
-            "camelot_table": "camelot",
-            "pdfplumber_text": "pdfplumber",
-            "pymupdf_text": "fitz",
-        }
-        module = imports.get(self._tool_name)
-        if not module:
-            return True
-        try:
-            __import__(module)
-            return True
-        except ImportError:
-            return False
+        return self._adapter.available()
 
     def extract(self, document: DocumentInput, profile: DocumentProfile | None = None) -> ExtractionResult:
         profile = profile or self._fallback_profile(document)
         available = self._tool_available()
-        confidence = 0.82 if available else 0.80
+        confidence = 0.84 if available else 0.80
 
-        prov = self._base_provenance(document, confidence)
-        unit = ExtractedUnit(unit_id=f"{document.document_id}:u0", text=document.content, provenance=prov)
+        if available:
+            parsed = self._adapter.parse(document)
+            units: list[ExtractedUnit] = []
+            for i, block in enumerate(parsed.blocks):
+                units.append(
+                    ExtractedUnit(
+                        unit_id=f"{document.document_id}:u{i}",
+                        text=block.text,
+                        provenance=ProvenanceRecord(
+                            source_uri=document.source_uri,
+                            extractor=self.strategy_name,
+                            record_id=f"{document.document_id}:u{i}",
+                            confidence=confidence,
+                            spatial=SpatialProvenance(
+                                page=block.page,
+                                x0=block.bbox.x0,
+                                y0=block.bbox.y0,
+                                x1=block.bbox.x1,
+                                y1=block.bbox.y1,
+                            ),
+                        ),
+                    )
+                )
 
-        include_table = self._tool_name == "camelot_table" or profile.layout_complexity.value in {
-            "table_heavy",
-            "mixed",
-        }
-        include_figure = profile.layout_complexity.value in {"figure_heavy", "mixed"}
+            if not units:
+                prov = self._base_provenance(document, confidence)
+                units = [ExtractedUnit(unit_id=f"{document.document_id}:u0", text=document.content, provenance=prov)]
 
-        extracted_document = self._build_extracted_document(
-            document,
-            profile,
-            document.content,
-            ChunkType.TABLE if include_table else ChunkType.TEXT,
-            include_table=include_table,
-            include_figure=include_figure,
-        )
+            extracted_document = self._build_extracted_document_from_units(document, profile, units)
+            extracted_document.tables = [
+                ExtractedTable(
+                    table_id=f"{document.document_id}:tbl{i}",
+                    headers=t.headers,
+                    rows=t.rows,
+                    page_number=t.page,
+                    bounding_box=t.bbox,
+                )
+                for i, t in enumerate(parsed.tables)
+            ]
+            extracted_document.figures = [
+                ExtractedFigure(
+                    figure_id=f"{document.document_id}:fig{i}",
+                    caption=f.caption,
+                    page_number=f.page,
+                    bounding_box=f.bbox,
+                )
+                for i, f in enumerate(parsed.figures)
+            ]
+        else:
+            prov = self._base_provenance(document, confidence)
+            units = [ExtractedUnit(unit_id=f"{document.document_id}:u0", text=document.content, provenance=prov)]
+            extracted_document = self._build_extracted_document_from_units(document, profile, units)
 
         return ExtractionResult(
             document_id=document.document_id,
@@ -332,7 +355,7 @@ class LayoutAwareExtractionStrategy(_BaseStrategy):
             extracted_document=extracted_document,
             strategy_used=self.strategy_name,
             strategy_confidence=confidence,
-            units=[unit],
+            units=units,
             audit=[
                 AuditEvent(
                     stage=StageName.EXTRACTION,
@@ -340,8 +363,9 @@ class LayoutAwareExtractionStrategy(_BaseStrategy):
                     metadata={
                         "tier": self.tier_name,
                         "tool": self._tool_name,
+                        "provider": self._adapter.provider_name,
                         "available": str(available).lower(),
-                        "preserved_reading_order": "true",
+                        "preserved_reading_order": "true" if available else "false",
                     },
                 )
             ],
