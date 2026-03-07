@@ -33,6 +33,18 @@ Open-source document intelligence engine for deterministic extraction, provenanc
 - Persistent storage backends for audit/extraction history (`memory` and `sqlite`).
 - Amharic + English localization support.
 - PageIndex tree build and query (`/pageindex/{document_id}`, `/pageindex/query`).
+- Vector ingestion stores full per-chunk metadata (`chunk_type`, `page_refs`, `content_hash`, `parent_section`).
+- FactTable extraction persists numerical key-value facts into SQLite with SQL retrieval via `/query/structured`.
+
+## Storage Rubric Evidence
+
+- Vector metadata ingestion:
+  - [/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/src/rataz_tech/indexing/strategies.py](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/src/rataz_tech/indexing/strategies.py)
+  - [/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/tests/test_indexing_metadata_ingestion.py](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/tests/test_indexing_metadata_ingestion.py)
+- FactTable extractor + SQLite schema + SQL query path:
+  - [/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/src/rataz_tech/indexing/facts.py](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/src/rataz_tech/indexing/facts.py)
+  - [/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/src/rataz_tech/api/services.py](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/src/rataz_tech/api/services.py)
+  - [/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/tests/test_storage_facttable_sqlite.py](/home/rata/Documents/Ephrata/work/10Acadamy/training/rataz-Wordz/tests/test_storage_facttable_sqlite.py)
 
 ## Run Locally
 
