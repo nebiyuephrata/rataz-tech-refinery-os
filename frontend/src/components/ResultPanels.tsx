@@ -1,10 +1,11 @@
 import { memo, useMemo } from "react";
 
-import type { PageIndexNode, PipelineResult, QueryResponse, StoredPageIndexResponse } from "../lib/types";
+import type { PageIndexNode, PipelineResult, QueryResponse, StoredPageIndexResponse, StructuredQueryResponse } from "../lib/types";
 
 type Props = {
   result: PipelineResult | null;
   queryResult: QueryResponse | null;
+  structuredResult: StructuredQueryResponse | null;
   pageIndex: StoredPageIndexResponse | null;
   routes: string[];
 };
@@ -27,7 +28,7 @@ function renderNode(node: PageIndexNode, depth = 0): JSX.Element {
   );
 }
 
-function ResultPanels({ result, queryResult, pageIndex, routes }: Props) {
+function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes }: Props) {
   const metrics = useMemo(() => {
     if (!result) return null;
     return {
@@ -47,13 +48,13 @@ function ResultPanels({ result, queryResult, pageIndex, routes }: Props) {
     const extractionCost = result
       ? sumAudit(result.extraction.audit) + sumAudit(result.chunking.audit) + sumAudit(result.indexing.audit)
       : 0;
-    const queryCost = queryResult ? sumAudit(queryResult.audit) : 0;
+    const queryCost = (queryResult ? sumAudit(queryResult.audit) : 0) + (structuredResult ? sumAudit(structuredResult.audit) : 0);
     return {
       extraction: extractionCost,
       query: queryCost,
       total: extractionCost + queryCost
     };
-  }, [queryResult, result]);
+  }, [queryResult, structuredResult, result]);
   const tableJson = useMemo(() => {
     const firstTable = result?.extraction.extracted_document?.tables?.[0];
     if (!firstTable) return null;
@@ -88,9 +89,22 @@ function ResultPanels({ result, queryResult, pageIndex, routes }: Props) {
 
       <section className="neon-border rounded-2xl bg-[var(--panel)] p-5 lg:col-span-1">
         <h3 className="font-display text-lg">Query Results</h3>
-        {!queryResult ? (
+        {!queryResult && !structuredResult ? (
           <p className="mt-3 text-sm text-[var(--text-soft)]">Run a query after ingestion.</p>
-        ) : (
+        ) : structuredResult ? (
+          <div className="mt-3 space-y-3">
+            {structuredResult.rows.map((row, idx) => (
+              <article key={`${row.metric}-${idx}`} className="rounded-lg border border-white/10 p-3">
+                <p className="text-sm font-semibold">{row.metric}</p>
+                <p className="mt-1 text-sm text-cyan-100">
+                  {row.value.toLocaleString()} {row.unit}
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-soft)]">page {row.page_number}</p>
+              </article>
+            ))}
+            {!structuredResult.rows.length && <p className="text-sm text-rose-300">No exact structured fact found.</p>}
+          </div>
+        ) : queryResult ? (
           <div className="mt-3 space-y-3">
             {queryResult.hits.map((hit) => (
               <article key={hit.chunk_id} className="rounded-lg border border-white/10 p-3">
@@ -100,6 +114,8 @@ function ResultPanels({ result, queryResult, pageIndex, routes }: Props) {
             ))}
             {!queryResult.hits.length && <p className="text-sm text-rose-300">{queryResult.reason ?? "No hits"}</p>}
           </div>
+        ) : (
+          <p className="mt-3 text-sm text-[var(--text-soft)]">Run a query after ingestion.</p>
         )}
       </section>
 

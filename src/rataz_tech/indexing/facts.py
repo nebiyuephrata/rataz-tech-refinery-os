@@ -7,6 +7,19 @@ from rataz_tech.core.models import NumericalFact, PipelineResult
 
 
 _FACT_RE = re.compile(r"(?P<metric>[A-Za-z][A-Za-z\s_-]{1,40})\s*(?:is|was|=|:)\s*\$?(?P<value>\d+(?:,\d{3})*(?:\.\d+)?)", re.IGNORECASE)
+_LINE_VALUE_RE = re.compile(r"\(?-?\d{1,3}(?:,\d{3})*(?:\.\d+)?\)?")
+_FIN_KEYWORD_RE = re.compile(r"\b(profit|loss|revenue|income|expense|ebitda|ebit)\b", re.IGNORECASE)
+
+
+def _to_float(raw: str) -> float | None:
+    cleaned = raw.strip()
+    negative = cleaned.startswith("(") and cleaned.endswith(")")
+    cleaned = cleaned.strip("()").replace(",", "")
+    try:
+        value = float(cleaned)
+    except ValueError:
+        return None
+    return -value if negative else value
 
 
 def extract_numerical_facts(result: PipelineResult) -> list[NumericalFact]:
@@ -29,6 +42,32 @@ def extract_numerical_facts(result: PipelineResult) -> list[NumericalFact]:
                     page_number=page,
                     content_hash=hashlib.sha256(match.group(0).encode("utf-8", errors="ignore")).hexdigest(),
                     source_text=match.group(0),
+                )
+            )
+        # OCR-friendly line parsing for financial statements where values are inline without 'is/was'.
+        for line in text.splitlines():
+            line_clean = " ".join(line.split())
+            if not line_clean or not _FIN_KEYWORD_RE.search(line_clean):
+                continue
+            values = _LINE_VALUE_RE.findall(line_clean)
+            if not values:
+                continue
+            raw_value = values[-1]
+            value = _to_float(raw_value)
+            if value is None:
+                continue
+            metric = _LINE_VALUE_RE.sub("", line_clean).strip(" :.-").lower()
+            if len(metric) < 3:
+                continue
+            facts.append(
+                NumericalFact(
+                    document_id=doc_id,
+                    metric=metric,
+                    value=value,
+                    unit="usd" if "$" in line_clean else "",
+                    page_number=page,
+                    content_hash=hashlib.sha256(line_clean.encode("utf-8", errors="ignore")).hexdigest(),
+                    source_text=line_clean,
                 )
             )
 

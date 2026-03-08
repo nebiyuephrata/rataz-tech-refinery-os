@@ -1,4 +1,4 @@
-import type { PipelineResult, QueryResponse, RequestAuditRecord, StoredPageIndexResponse } from "./types";
+import type { PipelineResult, QueryResponse, RequestAuditRecord, StoredPageIndexResponse, StructuredQueryResponse } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -32,6 +32,19 @@ export async function queryDocument(query: string, language: "en" | "am" = "en")
   }
 
   return response.json() as Promise<QueryResponse>;
+}
+
+export async function queryStructured(documentId: string, query: string, limit = 5): Promise<StructuredQueryResponse> {
+  const response = await fetch(`${API_BASE_URL}/query/structured`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document_id: documentId, query, limit })
+  });
+  if (!response.ok) {
+    const body = await safeError(response);
+    throw new Error(body || "Structured query failed");
+  }
+  return response.json() as Promise<StructuredQueryResponse>;
 }
 
 export async function fetchAudit(limit = 20): Promise<RequestAuditRecord[]> {

@@ -48,6 +48,23 @@ export type QueryResponse = {
   audit: AuditEvent[];
 };
 
+export type StructuredFactRow = {
+  document_id: string;
+  metric: string;
+  value: number;
+  unit: string;
+  page_number: number;
+  content_hash: string;
+  source_text: string;
+};
+
+export type StructuredQueryResponse = {
+  document_id: string;
+  query: string;
+  rows: StructuredFactRow[];
+  audit: AuditEvent[];
+};
+
 export type RequestAuditRecord = {
   route: string;
   method: string;

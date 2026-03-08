@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { fetchAudit, fetchPageIndex, queryDocument, uploadDocument } from "../lib/api";
-import type { PipelineResult, QueryResponse, StoredPageIndexResponse } from "../lib/types";
+import { fetchAudit, fetchPageIndex, queryDocument, queryStructured, uploadDocument } from "../lib/api";
+import type { PipelineResult, QueryResponse, StoredPageIndexResponse, StructuredQueryResponse } from "../lib/types";
 
 export type StageState = { id: string; label: string; state: "idle" | "running" | "done" | "error" };
 
@@ -16,6 +16,7 @@ const BASE_STAGES: StageState[] = [
 export function useExtraction() {
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
+  const [structuredResult, setStructuredResult] = useState<StructuredQueryResponse | null>(null);
   const [pageIndex, setPageIndex] = useState<StoredPageIndexResponse | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
   const [queryText, setQueryText] = useState("provenance");
@@ -32,6 +33,7 @@ export function useExtraction() {
     onMutate: () => {
       setResult(null);
       setQueryResult(null);
+      setStructuredResult(null);
       setPageIndex(null);
       setStages([
         { id: "ingest", label: "Ingestion", state: "running" },
@@ -70,8 +72,24 @@ export function useExtraction() {
   }, [pageIndexQuery.data]);
 
   const queryMutation = useMutation({
-    mutationFn: (query: string) => queryDocument(query, "en"),
-    onSuccess: (data) => setQueryResult(data)
+    mutationFn: async (query: string) => {
+      const financialIntent = /\b(profit|loss|revenue|income|expense|ebitda|ebit|net)\b/i.test(query);
+      if (financialIntent && result?.extraction.document_id) {
+        const data = await queryStructured(result.extraction.document_id, query, 5);
+        return { mode: "structured" as const, data };
+      }
+      const data = await queryDocument(query, "en");
+      return { mode: "semantic" as const, data };
+    },
+    onSuccess: (payload) => {
+      if (payload.mode === "structured") {
+        setStructuredResult(payload.data);
+        setQueryResult(null);
+      } else {
+        setQueryResult(payload.data);
+        setStructuredResult(null);
+      }
+    }
   });
 
   const onUpload = useCallback(
@@ -92,6 +110,7 @@ export function useExtraction() {
     stages,
     result,
     queryResult,
+    structuredResult,
     queryText,
     setQueryText,
     pageIndex,

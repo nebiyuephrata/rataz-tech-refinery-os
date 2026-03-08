@@ -30,7 +30,7 @@ class QueryAgent:
         q = query.lower()
         if any(tok in q for tok in ["go to", "navigate", "section", "where in", "page"]):
             return "pageindex_navigate"
-        if any(tok in q for tok in ["how much", "exact", "value", "amount", "number", "sql", "revenue", "ebitda"]):
+        if any(tok in q for tok in ["how much", "exact", "value", "amount", "number", "sql", "revenue", "ebitda", "profit", "loss", "income"]):
             return "structured_query"
         return "semantic_search"
 
