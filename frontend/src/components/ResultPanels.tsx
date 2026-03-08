@@ -36,6 +36,24 @@ function ResultPanels({ result, queryResult, pageIndex, routes }: Props) {
       confidence: (result.extraction.strategy_confidence * 100).toFixed(1)
     };
   }, [result]);
+  const cost = useMemo(() => {
+    const parseCost = (value?: string) => {
+      const n = Number.parseFloat(value ?? "0");
+      return Number.isFinite(n) ? n : 0;
+    };
+    const sumAudit = (audits: Array<{ metadata: Record<string, string> }>) =>
+      audits.reduce((acc, event) => acc + parseCost(event.metadata?.estimated_cost_usd), 0);
+
+    const extractionCost = result
+      ? sumAudit(result.extraction.audit) + sumAudit(result.chunking.audit) + sumAudit(result.indexing.audit)
+      : 0;
+    const queryCost = queryResult ? sumAudit(queryResult.audit) : 0;
+    return {
+      extraction: extractionCost,
+      query: queryCost,
+      total: extractionCost + queryCost
+    };
+  }, [queryResult, result]);
   const tableJson = useMemo(() => {
     const firstTable = result?.extraction.extracted_document?.tables?.[0];
     if (!firstTable) return null;
@@ -59,7 +77,16 @@ function ResultPanels({ result, queryResult, pageIndex, routes }: Props) {
         )}
       </section>
 
-      <section className="neon-border rounded-2xl bg-[var(--panel)] p-5 lg:col-span-2">
+      <section className="neon-border rounded-2xl bg-[var(--panel)] p-5">
+        <h3 className="font-display text-lg">Cost Ledger</h3>
+        <ul className="mt-3 space-y-2 text-sm text-[var(--text-soft)]">
+          <li>Extraction Cost: ${cost.extraction.toFixed(6)}</li>
+          <li>Query Cost: ${cost.query.toFixed(6)}</li>
+          <li className="text-cyan-200">Total Cost: ${cost.total.toFixed(6)}</li>
+        </ul>
+      </section>
+
+      <section className="neon-border rounded-2xl bg-[var(--panel)] p-5 lg:col-span-1">
         <h3 className="font-display text-lg">Query Results</h3>
         {!queryResult ? (
           <p className="mt-3 text-sm text-[var(--text-soft)]">Run a query after ingestion.</p>
