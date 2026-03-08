@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { fetchAudit, queryDocument, uploadDocument } from "../lib/api";
-import type { PipelineResult, QueryResponse } from "../lib/types";
+import { fetchAudit, fetchPageIndex, queryDocument, uploadDocument } from "../lib/api";
+import type { PipelineResult, QueryResponse, StoredPageIndexResponse } from "../lib/types";
 
 export type StageState = { id: string; label: string; state: "idle" | "running" | "done" | "error" };
 
@@ -16,6 +16,7 @@ const BASE_STAGES: StageState[] = [
 export function useExtraction() {
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
+  const [pageIndex, setPageIndex] = useState<StoredPageIndexResponse | null>(null);
   const [queryText, setQueryText] = useState("provenance");
   const [stages, setStages] = useState<StageState[]>(BASE_STAGES);
 
@@ -30,6 +31,7 @@ export function useExtraction() {
     onMutate: () => {
       setResult(null);
       setQueryResult(null);
+      setPageIndex(null);
       setStages([
         { id: "ingest", label: "Ingestion", state: "running" },
         { id: "extraction", label: "Extraction", state: "idle" },
@@ -51,6 +53,21 @@ export function useExtraction() {
     }
   });
 
+  const pageIndexQuery = useQuery({
+    queryKey: ["pageindex", result?.extraction.document_id],
+    queryFn: async () => {
+      if (!result?.extraction.document_id) return null;
+      return fetchPageIndex(result.extraction.document_id);
+    },
+    enabled: Boolean(result?.extraction.document_id)
+  });
+
+  useEffect(() => {
+    if (pageIndexQuery.data !== undefined) {
+      setPageIndex(pageIndexQuery.data);
+    }
+  }, [pageIndexQuery.data]);
+
   const queryMutation = useMutation({
     mutationFn: (query: string) => queryDocument(query, "en"),
     onSuccess: (data) => setQueryResult(data)
@@ -70,6 +87,7 @@ export function useExtraction() {
     queryResult,
     queryText,
     setQueryText,
+    pageIndex,
     onUpload,
     onQuery,
     uploading: uploadMutation.isPending,

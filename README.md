@@ -81,6 +81,8 @@ Modern neon UI with:
 - drag/drop file upload to `/ingest/file`
 - realtime request feed (polling `/audit/requests`)
 - extraction stage status timeline
+- extracted table JSON viewer
+- PageIndex tree viewer from `/pageindex/{document_id}`
 - query panel with provenance-ready responses
 - dark/light theme toggle
 - React hooks with memoization (`useMemo`) and stable handlers (`useCallback`)

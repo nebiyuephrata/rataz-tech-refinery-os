@@ -1,4 +1,4 @@
-import type { PipelineResult, QueryResponse, RequestAuditRecord } from "./types";
+import type { PipelineResult, QueryResponse, RequestAuditRecord, StoredPageIndexResponse } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -41,6 +41,14 @@ export async function fetchAudit(limit = 20): Promise<RequestAuditRecord[]> {
   }
   const body = (await response.json()) as { records: RequestAuditRecord[] };
   return body.records ?? [];
+}
+
+export async function fetchPageIndex(documentId: string): Promise<StoredPageIndexResponse | null> {
+  const response = await fetch(`${API_BASE_URL}/pageindex/${encodeURIComponent(documentId)}`);
+  if (!response.ok) {
+    return null;
+  }
+  return response.json() as Promise<StoredPageIndexResponse>;
 }
 
 async function safeError(response: Response): Promise<string | null> {

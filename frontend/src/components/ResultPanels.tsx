@@ -1,14 +1,33 @@
 import { memo, useMemo } from "react";
 
-import type { PipelineResult, QueryResponse } from "../lib/types";
+import type { PageIndexNode, PipelineResult, QueryResponse, StoredPageIndexResponse } from "../lib/types";
 
 type Props = {
   result: PipelineResult | null;
   queryResult: QueryResponse | null;
+  pageIndex: StoredPageIndexResponse | null;
   routes: string[];
 };
 
-function ResultPanels({ result, queryResult, routes }: Props) {
+function renderNode(node: PageIndexNode, depth = 0): JSX.Element {
+  return (
+    <div key={node.node_id} className="space-y-2">
+      <div className="rounded-lg border border-white/10 bg-black/20 p-3" style={{ marginLeft: `${depth * 14}px` }}>
+        <p className="text-sm font-semibold">{node.title}</p>
+        <p className="text-xs text-[var(--text-soft)]">
+          pages {node.page_start}-{node.page_end}
+        </p>
+        {node.summary && <p className="mt-1 text-xs text-[var(--text-soft)]">{node.summary}</p>}
+        {!!node.key_entities?.length && (
+          <p className="mt-1 text-[11px] text-cyan-200">entities: {node.key_entities.join(", ")}</p>
+        )}
+      </div>
+      {!!node.children?.length && node.children.map((child) => renderNode(child, depth + 1))}
+    </div>
+  );
+}
+
+function ResultPanels({ result, queryResult, pageIndex, routes }: Props) {
   const metrics = useMemo(() => {
     if (!result) return null;
     return {
@@ -16,6 +35,11 @@ function ResultPanels({ result, queryResult, routes }: Props) {
       indexed: result.indexing.indexed.length,
       confidence: (result.extraction.strategy_confidence * 100).toFixed(1)
     };
+  }, [result]);
+  const tableJson = useMemo(() => {
+    const firstTable = result?.extraction.extracted_document?.tables?.[0];
+    if (!firstTable) return null;
+    return JSON.stringify(firstTable, null, 2);
   }, [result]);
 
   return (
@@ -49,6 +73,26 @@ function ResultPanels({ result, queryResult, routes }: Props) {
             ))}
             {!queryResult.hits.length && <p className="text-sm text-rose-300">{queryResult.reason ?? "No hits"}</p>}
           </div>
+        )}
+      </section>
+
+      <section className="neon-border rounded-2xl bg-[var(--panel)] p-5 lg:col-span-3">
+        <h3 className="font-display text-lg">Extracted Table JSON</h3>
+        {tableJson ? (
+          <pre className="mt-3 overflow-x-auto rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-cyan-100">
+            {tableJson}
+          </pre>
+        ) : (
+          <p className="mt-3 text-sm text-[var(--text-soft)]">No extracted tables found in this document.</p>
+        )}
+      </section>
+
+      <section className="neon-border rounded-2xl bg-[var(--panel)] p-5 lg:col-span-3">
+        <h3 className="font-display text-lg">PageIndex Tree</h3>
+        {pageIndex?.pageindex?.root ? (
+          <div className="mt-3 space-y-2">{renderNode(pageIndex.pageindex.root)}</div>
+        ) : (
+          <p className="mt-3 text-sm text-[var(--text-soft)]">No page index available yet.</p>
         )}
       </section>
 

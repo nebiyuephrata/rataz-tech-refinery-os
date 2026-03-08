@@ -13,6 +13,7 @@ export default function App() {
     stages,
     result,
     queryResult,
+    pageIndex,
     queryText,
     setQueryText,
     onUpload,
@@ -79,7 +80,7 @@ export default function App() {
           <StageTimeline stages={stages} />
         </div>
 
-        <ResultPanels result={result} queryResult={queryResult} routes={lastRoutes} />
+        <ResultPanels result={result} queryResult={queryResult} pageIndex={pageIndex} routes={lastRoutes} />
       </div>
     </main>
   );
