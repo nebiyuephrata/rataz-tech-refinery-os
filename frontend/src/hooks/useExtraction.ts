@@ -17,6 +17,7 @@ export function useExtraction() {
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [pageIndex, setPageIndex] = useState<StoredPageIndexResponse | null>(null);
+  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
   const [queryText, setQueryText] = useState("provenance");
   const [stages, setStages] = useState<StageState[]>(BASE_STAGES);
 
@@ -73,7 +74,13 @@ export function useExtraction() {
     onSuccess: (data) => setQueryResult(data)
   });
 
-  const onUpload = useCallback((file: File) => uploadMutation.mutate(file), [uploadMutation]);
+  const onUpload = useCallback(
+    (file: File) => {
+      setCurrentFileName(file.name);
+      uploadMutation.mutate(file);
+    },
+    [uploadMutation]
+  );
   const onQuery = useCallback(() => queryMutation.mutate(queryText), [queryMutation, queryText]);
 
   const lastRoutes = useMemo(
@@ -88,6 +95,7 @@ export function useExtraction() {
     queryText,
     setQueryText,
     pageIndex,
+    currentFileName,
     onUpload,
     onQuery,
     uploading: uploadMutation.isPending,

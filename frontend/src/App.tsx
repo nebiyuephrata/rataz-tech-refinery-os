@@ -14,6 +14,7 @@ export default function App() {
     result,
     queryResult,
     pageIndex,
+    currentFileName,
     queryText,
     setQueryText,
     onUpload,
@@ -55,6 +56,13 @@ export default function App() {
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
             <UploadDropzone onFileSelected={onUpload} disabled={uploading} />
+            {currentFileName && (
+              <div className="neon-border rounded-xl bg-[var(--panel)] px-4 py-3 text-sm">
+                <span className="text-[var(--text-soft)]">Current File: </span>
+                <span className="font-semibold">{currentFileName}</span>
+                <span className="ml-2 text-cyan-300">{uploading ? "(scanning...)" : "(ready)"}</span>
+              </div>
+            )}
             {uploadError && <p className="rounded-lg border border-rose-400/40 bg-rose-950/30 p-3 text-sm text-rose-300">{uploadError}</p>}
             <form onSubmit={onQuerySubmit} className="neon-border rounded-2xl bg-[var(--panel)] p-5">
               <label className="font-display text-lg">Ask the indexed document</label>
