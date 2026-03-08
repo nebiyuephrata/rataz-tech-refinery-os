@@ -88,9 +88,8 @@ def create_app(config_path: str | None = None) -> FastAPI:
         file: UploadFile = File(...),
         _: None = Depends(auth.verify),
     ) -> PipelineResult:
-        content, mime_type = await file_ingest.read_upload_as_text(file)
+        content, mime_type, source_uri = await file_ingest.read_upload_as_text(file)
         doc_id = f"upload-{uuid4()}"
-        source_uri = f"upload://{file.filename or doc_id}"
 
         result = pipeline.ingest(
             DocumentInput(

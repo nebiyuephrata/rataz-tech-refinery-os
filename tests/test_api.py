@@ -97,7 +97,28 @@ def test_file_ingest_text() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["trace_id"].startswith("ingest-")
-    assert body["extraction"]["units"][0]["provenance"]["source_uri"].startswith("upload://")
+    assert body["extraction"]["units"][0]["provenance"]["source_uri"].startswith("local://")
+
+
+def test_file_ingest_pdf_allows_zero_text_layer(monkeypatch) -> None:
+    class _FakePage:
+        def extract_text(self):
+            return ""
+
+    class _FakeReader:
+        def __init__(self, _):
+            self.pages = [_FakePage()]
+
+    from rataz_tech.api import services as api_services
+
+    monkeypatch.setattr(api_services, "PdfReader", _FakeReader)
+    client = TestClient(create_app("configs/settings.yaml"))
+
+    response = client.post(
+        "/ingest/file",
+        files={"file": ("scanned.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+    assert response.status_code == 200
 
 
 def test_cors_preflight_for_file_upload() -> None:

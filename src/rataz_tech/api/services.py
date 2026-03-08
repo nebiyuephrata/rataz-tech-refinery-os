@@ -10,6 +10,7 @@ from pathlib import Path
 import sqlite3
 import threading
 from typing import Deque, Optional
+from uuid import uuid4
 
 from fastapi import Header, HTTPException, UploadFile
 from pypdf import PdfReader
@@ -481,7 +482,7 @@ class FileIngestService:
     def __init__(self, config: ApiConfig) -> None:
         self._config = config
 
-    async def read_upload_as_text(self, upload: UploadFile) -> tuple[str, str]:
+    async def read_upload_as_text(self, upload: UploadFile) -> tuple[str, str, str]:
         raw = await upload.read()
         if len(raw) > self._config.max_upload_bytes:
             raise HTTPException(status_code=413, detail="Uploaded file exceeds configured size limit")
@@ -490,14 +491,20 @@ class FileIngestService:
         if mime_type not in self._config.allowed_upload_mime_types:
             raise HTTPException(status_code=415, detail="Unsupported media type")
 
+        uploads_dir = Path("data/uploads")
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = (upload.filename or "uploaded.bin").replace("/", "_").replace("\\", "_")
+        stored_path = uploads_dir / f"{uuid4()}-{safe_name}"
+        stored_path.write_bytes(raw)
+        source_uri = f"local://{stored_path.resolve()}"
+
         if mime_type == "application/pdf":
             reader = PdfReader(io.BytesIO(raw))
             content = "\n".join((page.extract_text() or "") for page in reader.pages).strip()
-            if not content:
-                raise HTTPException(status_code=422, detail="No extractable text found in PDF")
-            return content, mime_type
+            # Graceful degradation: scanned PDFs may have no text layer.
+            return content, mime_type, source_uri
 
         content = raw.decode("utf-8", errors="replace").strip()
         if not content:
             raise HTTPException(status_code=422, detail="Uploaded file does not contain text")
-        return content, mime_type
+        return content, mime_type, source_uri
