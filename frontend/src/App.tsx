@@ -90,6 +90,7 @@ export default function App() {
         </div>
 
         <ResultPanels
+          documentId={result?.extraction.document_id ?? null}
           result={result}
           queryResult={queryResult}
           structuredResult={structuredResult}

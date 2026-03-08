@@ -2,6 +2,11 @@ import type { PipelineResult, QueryResponse, RequestAuditRecord, StoredPageIndex
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
+export function getDocumentSourceUrl(documentId: string, page?: number): string {
+  const base = `${API_BASE_URL}/documents/${encodeURIComponent(documentId)}/source`;
+  return typeof page === "number" && page > 0 ? `${base}#page=${page}` : base;
+}
+
 export async function uploadDocument(file: File): Promise<PipelineResult> {
   const formData = new FormData();
   formData.append("file", file);

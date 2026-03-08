@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from rataz_tech.api.models import (
     ApiErrorResponse,
@@ -191,6 +193,32 @@ def create_app(config_path: str | None = None) -> FastAPI:
         if item is None:
             raise HTTPException(status_code=404, detail=f"No page index found for document_id={document_id}")
         return item
+
+    @app.get("/documents/{document_id}/source", responses=error_responses)
+    def get_source_document(document_id: str, _: None = Depends(auth.verify)) -> FileResponse:
+        item = store.get_latest_extraction(document_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"No extraction found for document_id={document_id}")
+        if not item.pipeline_result.extraction.units:
+            raise HTTPException(status_code=404, detail=f"No source available for document_id={document_id}")
+
+        source_uri = item.pipeline_result.extraction.units[0].provenance.source_uri
+        if source_uri.startswith("local://"):
+            path_str = source_uri.replace("local://", "", 1)
+        elif source_uri.startswith("file://"):
+            path_str = source_uri.replace("file://", "", 1)
+        else:
+            raise HTTPException(status_code=404, detail="Source URI is not a local file")
+
+        source_path = Path(path_str).expanduser().resolve()
+        uploads_root = Path("data/uploads").resolve()
+        if uploads_root not in source_path.parents and source_path != uploads_root:
+            raise HTTPException(status_code=404, detail="Source file is outside allowed upload directory")
+        if not source_path.exists() or not source_path.is_file():
+            raise HTTPException(status_code=404, detail="Source file not found")
+
+        media_type = "application/pdf" if source_path.suffix.lower() == ".pdf" else "text/plain"
+        return FileResponse(path=source_path, media_type=media_type, filename=source_path.name)
 
     @app.post("/pageindex/query", response_model=PageIndexQueryResponse, responses=error_responses)
     def query_pageindex(request: PageIndexQueryRequest, _: None = Depends(auth.verify)) -> PageIndexQueryResponse:

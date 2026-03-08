@@ -1,8 +1,10 @@
 import { memo, useMemo } from "react";
 
+import { getDocumentSourceUrl } from "../lib/api";
 import type { PageIndexNode, PipelineResult, QueryResponse, StoredPageIndexResponse, StructuredQueryResponse } from "../lib/types";
 
 type Props = {
+  documentId: string | null;
   result: PipelineResult | null;
   queryResult: QueryResponse | null;
   structuredResult: StructuredQueryResponse | null;
@@ -28,7 +30,7 @@ function renderNode(node: PageIndexNode, depth = 0): JSX.Element {
   );
 }
 
-function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes }: Props) {
+function ResultPanels({ documentId, result, queryResult, structuredResult, pageIndex, routes }: Props) {
   const metrics = useMemo(() => {
     if (!result) return null;
     return {
@@ -102,6 +104,16 @@ function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes
                 </p>
                 <p className="mt-1 text-xs text-[var(--text-soft)]">page {row.page_number}</p>
                 <p className="mt-1 text-xs text-[var(--text-soft)]">row: {row.source_text}</p>
+                {documentId && (
+                  <a
+                    href={getDocumentSourceUrl(documentId, row.page_number)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block text-xs text-cyan-300 hover:text-cyan-100"
+                  >
+                    Open page {row.page_number}
+                  </a>
+                )}
               </article>
             ))}
           </div>
@@ -116,18 +128,35 @@ function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes
               <article key={hit.chunk_id} className="rounded-lg border border-white/10 p-3">
                 <p className="text-sm">{hit.snippet}</p>
                 <p className="mt-2 text-xs text-cyan-300">score {hit.score.toFixed(3)}</p>
-                <p className="mt-1 text-xs text-[var(--text-soft)]">
-                  pages:{" "}
-                  {Array.from(
+                {(() => {
+                  const pages = Array.from(
                     new Set(
                       hit.provenance
                         .map((prov) => prov.spatial?.page)
                         .filter((page): page is number => typeof page === "number")
                     )
-                  )
-                    .sort((a, b) => a - b)
-                    .join(", ") || "unknown"}
-                </p>
+                  ).sort((a, b) => a - b);
+                  return (
+                    <div className="mt-1 text-xs text-[var(--text-soft)]">
+                      <p>pages: {pages.join(", ") || "unknown"}</p>
+                      {documentId && pages.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {pages.map((page) => (
+                            <a
+                              key={`${hit.chunk_id}-page-${page}`}
+                              href={getDocumentSourceUrl(documentId, page)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-block rounded border border-cyan-400/30 px-2 py-0.5 text-cyan-300 hover:text-cyan-100"
+                            >
+                              Open page {page}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </article>
             ))}
             {!queryResult.hits.length && <p className="text-sm text-rose-300">{queryResult.reason ?? "No hits"}</p>}
