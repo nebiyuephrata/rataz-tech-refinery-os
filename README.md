@@ -101,7 +101,7 @@ npm run dev
 Runtime controls are in `configs/settings.yaml`:
 - extraction routing thresholds and fallback chain
 - query confidence/escalation controls
-- API auth, upload limits, and audit retention
+- API auth, upload limits (`api.max_upload_bytes`, default 60MB), and audit retention
 - storage backend (`memory` or `sqlite`) and SQLite path/retention caps
 
 ## Tier A Backends
