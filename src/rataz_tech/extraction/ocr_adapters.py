@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from io import BytesIO
 from typing import Callable, Dict, List
 
 from pydantic import BaseModel, Field
+from PIL import Image
 
 from rataz_tech.core.models import BBox, DocumentInput
+from rataz_tech.extraction.pdf_parsers import resolve_source_path
 
 
 class OCRTextBlock(BaseModel):
@@ -65,7 +68,53 @@ class TesseractOCRAdapter(OCRAdapter):
             return False
 
     def parse(self, document: DocumentInput) -> OCRAdapterResult:
-        # Real image/pdf OCR connector point.
+        import pytesseract
+
+        source_path = resolve_source_path(document.source_uri)
+        if source_path and document.mime_type == "application/pdf":
+            try:
+                import fitz
+
+                blocks: list[OCRTextBlock] = []
+                pdf = fitz.open(source_path)
+                try:
+                    for page_no, page in enumerate(pdf, start=1):
+                        pix = page.get_pixmap(dpi=220)
+                        img = Image.open(BytesIO(pix.tobytes("png")))
+                        text = (pytesseract.image_to_string(img) or "").strip()
+                        if text:
+                            blocks.append(
+                                OCRTextBlock(
+                                    page=page_no,
+                                    text=text,
+                                    bbox=BBox(x0=0, y0=0, x1=float(page.rect.width), y1=float(page.rect.height)),
+                                )
+                            )
+                finally:
+                    pdf.close()
+                if blocks:
+                    return OCRAdapterResult(blocks=blocks)
+            except Exception:
+                pass
+
+        if source_path and document.mime_type.startswith("image/"):
+            try:
+                img = Image.open(source_path)
+                text = (pytesseract.image_to_string(img) or "").strip()
+                if text:
+                    return OCRAdapterResult(
+                        blocks=[
+                            OCRTextBlock(
+                                page=1,
+                                text=text,
+                                bbox=BBox(x0=0, y0=0, x1=float(img.size[0]), y1=float(img.size[1])),
+                            )
+                        ]
+                    )
+            except Exception:
+                pass
+
+        # Fallback: keep deterministic behavior for text-based inputs.
         text = document.content.strip() or ""
         blocks = [OCRTextBlock(page=1, text=text, bbox=BBox(x0=0, y0=0, x1=100, y1=100))] if text else []
         return OCRAdapterResult(blocks=blocks)

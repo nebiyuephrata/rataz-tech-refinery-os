@@ -63,7 +63,7 @@ extraction:
   strategy_by_cost:
     A_fast_text: "plain_text"
     B_layout_aware: "docling_layout"
-    C_vision_augmented: "docling_layout"
+    C_vision_augmented: "vision_augmented"
 
   # Confidence gates per strategy tier.
   strategy_confidence_thresholds:
