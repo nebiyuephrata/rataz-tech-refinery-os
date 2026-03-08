@@ -100,6 +100,19 @@ def test_file_ingest_text() -> None:
     assert body["extraction"]["units"][0]["provenance"]["source_uri"].startswith("upload://")
 
 
+def test_cors_preflight_for_file_upload() -> None:
+    client = TestClient(create_app("configs/settings.yaml"))
+    response = client.options(
+        "/ingest/file",
+        headers={
+            "Origin": "http://127.0.0.1:5173",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code in {200, 204}
+    assert response.headers.get("access-control-allow-origin") == "http://127.0.0.1:5173"
+
+
 def test_api_key_auth_when_enabled(tmp_path, monkeypatch) -> None:
     with open("configs/settings.yaml", "r", encoding="utf-8") as fh:
         cfg = yaml.safe_load(fh)

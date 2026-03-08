@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 from rataz_tech.api.models import (
     ApiErrorResponse,
@@ -49,6 +50,12 @@ def create_app(config_path: str | None = None) -> FastAPI:
     }
 
     app = FastAPI(title="Rataz Tech Refinery-OS API", version="0.3.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=pipeline.settings.api.cors_allow_origins,
+        allow_methods=pipeline.settings.api.cors_allow_methods,
+        allow_headers=pipeline.settings.api.cors_allow_headers,
+    )
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:

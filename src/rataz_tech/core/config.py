@@ -100,6 +100,9 @@ class ApiConfig(BaseModel):
     max_upload_bytes: int = Field(gt=0)
     fallback_mime_type: str
     allowed_upload_mime_types: List[str]
+    cors_allow_origins: List[str] = Field(default_factory=lambda: ["http://127.0.0.1:5173", "http://localhost:5173"])
+    cors_allow_methods: List[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_headers: List[str] = Field(default_factory=lambda: ["*"])
 
 
 class StorageConfig(BaseModel):

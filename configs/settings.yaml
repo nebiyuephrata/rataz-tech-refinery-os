@@ -105,6 +105,9 @@ api:
   max_upload_bytes: 4000000
   fallback_mime_type: "text/plain"
   allowed_upload_mime_types: ["text/plain", "application/pdf"]
+  cors_allow_origins: ["http://127.0.0.1:5173", "http://localhost:5173"]
+  cors_allow_methods: ["*"]
+  cors_allow_headers: ["*"]
 
 storage:
   backend: "sqlite"
