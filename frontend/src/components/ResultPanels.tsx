@@ -60,6 +60,7 @@ function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes
     if (!firstTable) return null;
     return JSON.stringify(firstTable, null, 2);
   }, [result]);
+  const hasStructuredRows = (structuredResult?.rows.length ?? 0) > 0;
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -91,7 +92,7 @@ function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes
         <h3 className="font-display text-lg">Query Results</h3>
         {!queryResult && !structuredResult ? (
           <p className="mt-3 text-sm text-[var(--text-soft)]">Run a query after ingestion.</p>
-        ) : structuredResult ? (
+        ) : hasStructuredRows && structuredResult ? (
           <div className="mt-3 space-y-3">
             {structuredResult.rows.map((row, idx) => (
               <article key={`${row.metric}-${idx}`} className="rounded-lg border border-white/10 p-3">
@@ -102,10 +103,14 @@ function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes
                 <p className="mt-1 text-xs text-[var(--text-soft)]">page {row.page_number}</p>
               </article>
             ))}
-            {!structuredResult.rows.length && <p className="text-sm text-rose-300">No exact structured fact found.</p>}
           </div>
         ) : queryResult ? (
           <div className="mt-3 space-y-3">
+            {!!structuredResult && !hasStructuredRows && (
+              <p className="text-sm text-amber-300">
+                No exact structured fact found. Showing most relevant evidence from semantic search.
+              </p>
+            )}
             {queryResult.hits.map((hit) => (
               <article key={hit.chunk_id} className="rounded-lg border border-white/10 p-3">
                 <p className="text-sm">{hit.snippet}</p>

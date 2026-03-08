@@ -75,8 +75,16 @@ export function useExtraction() {
     mutationFn: async (query: string) => {
       const financialIntent = /\b(profit|loss|revenue|income|expense|ebitda|ebit|net)\b/i.test(query);
       if (financialIntent && result?.extraction.document_id) {
-        const data = await queryStructured(result.extraction.document_id, query, 5);
-        return { mode: "structured" as const, data };
+        const structured = await queryStructured(result.extraction.document_id, query, 5);
+        if (structured.rows.length > 0) {
+          return { mode: "structured" as const, data: structured };
+        }
+        const semantic = await queryDocument(query, "en");
+        return {
+          mode: "semantic_fallback" as const,
+          data: semantic,
+          structured
+        };
       }
       const data = await queryDocument(query, "en");
       return { mode: "semantic" as const, data };
@@ -85,6 +93,9 @@ export function useExtraction() {
       if (payload.mode === "structured") {
         setStructuredResult(payload.data);
         setQueryResult(null);
+      } else if (payload.mode === "semantic_fallback") {
+        setStructuredResult(payload.structured);
+        setQueryResult(payload.data);
       } else {
         setQueryResult(payload.data);
         setStructuredResult(null);
