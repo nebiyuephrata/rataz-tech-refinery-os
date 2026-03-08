@@ -101,6 +101,7 @@ function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes
                   {row.value.toLocaleString()} {row.unit}
                 </p>
                 <p className="mt-1 text-xs text-[var(--text-soft)]">page {row.page_number}</p>
+                <p className="mt-1 text-xs text-[var(--text-soft)]">row: {row.source_text}</p>
               </article>
             ))}
           </div>
@@ -115,6 +116,18 @@ function ResultPanels({ result, queryResult, structuredResult, pageIndex, routes
               <article key={hit.chunk_id} className="rounded-lg border border-white/10 p-3">
                 <p className="text-sm">{hit.snippet}</p>
                 <p className="mt-2 text-xs text-cyan-300">score {hit.score.toFixed(3)}</p>
+                <p className="mt-1 text-xs text-[var(--text-soft)]">
+                  pages:{" "}
+                  {Array.from(
+                    new Set(
+                      hit.provenance
+                        .map((prov) => prov.spatial?.page)
+                        .filter((page): page is number => typeof page === "number")
+                    )
+                  )
+                    .sort((a, b) => a - b)
+                    .join(", ") || "unknown"}
+                </p>
               </article>
             ))}
             {!queryResult.hits.length && <p className="text-sm text-rose-300">{queryResult.reason ?? "No hits"}</p>}
